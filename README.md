@@ -7,11 +7,15 @@ Drive the tractor and build white tubes to keep the rising water away from the h
 ## Run it
 
 ```bash
-npm install      # or: pnpm install
-npm run dev      # or: pnpm dev
+pnpm install
+pnpm dev
 ```
 
 Then open the URL that Vite prints (usually http://localhost:5173).
+
+Other scripts: `pnpm build` (type-check + production build), `pnpm typecheck`, `pnpm check-levels`.
+
+The project is written in TypeScript (strict mode). `pnpm check-levels` runs the `.ts` tool directly with Node, which needs Node 22.18 or newer.
 
 ## Play online
 
@@ -49,22 +53,23 @@ One-time setup: repo Settings > Pages > Source = "GitHub Actions".
 
 ## Levels
 
-- **Tutorial (0a, 0b)**: 5×5 guided levels: building, releasing the flood, the height rule, the timer and stacking.
-- **Easy (1–5)**: 8×8 maps.
-- **Medium (6–10)**: 12×12 maps.
-- **Hard (11–15)**: an island to ring with tubes, a gorge to find, tubes used as steps, a dike to raise while driving on it, and a 16×12 finale.
+- **0a, 0b**: 5×5 guided tutorials: building, releasing the flood, the height rule, the timer and stacking.
+- **1–5**: 8×8 maps.
+- **6–10**: 12×12 maps.
+- **11–15**: harder levels: an island to ring with tubes, a gorge to find, tubes used as steps, a dike to raise while driving on it, and a 16×12 finale.
 
-The levels form a path on a pixel-art world map. Each level unlocks the next one once it is passed (at least 1 star). Progress and best stars are saved in the browser (localStorage) and can be erased with the **RESET PROGRESS** button on the map. Set `UNLOCK_ALL_LEVELS: true` in `src/config.js` to open every level while testing.
+The levels form a path on a pixel-art world map. Each level unlocks the next one once it is passed (at least 1 star). Progress and best stars are saved in the browser (localStorage) and can be erased with the **RESET PROGRESS** button on the map. Set `UNLOCK_ALL_LEVELS: true` in `src/config.ts` to open every level while testing.
 
 In the tutorials, each tip appears in the middle of the field and pauses the game until you press Space (`TUTORIAL_POPUPS` in the config).
 
 ## Files
 
-- `src/config.js`: all the balancing variables (timings, climb rule, scoring, colours...).
-- `src/levels.js`: level definitions (height grid plus object grid). Add levels here.
-- `src/engine.js`: pure game logic (movement, building, flooding, scoring).
-- `src/render.js`, `src/sprites.js`: pixel-art canvas renderer.
-- `src/Game.jsx`, `src/App.jsx`: React UI (HUD, input, tutorial popups).
-- `src/WorldMap.jsx`, `src/worldmap.js`: level progression map (generated from the level list, so new levels extend the path automatically).
-- `src/progress.js`: saved progress (stars, unlocking, reset).
-- `tools/check-levels.js`, `tools/solver.js`: run `npm run check-levels` (add `-- -v` to print the maps) to see, for each level, what floods without protection, the minimum number of tubes needed to save everything, and whether a simple bot can build it in time following the tractor rules.
+- `src/config.ts`: all the balancing variables (timings, climb rule, scoring, colours...).
+- `src/levels.ts`: level definitions (height grid plus object grid). Add levels here.
+- `src/types.ts`: shared types (levels, game state, events).
+- `src/engine.ts`: pure game logic (movement, building, flooding, scoring).
+- `src/render.ts`, `src/sprites.ts`: pixel-art canvas renderer.
+- `src/Game.tsx`, `src/App.tsx`: React UI (HUD, input, tutorial popups).
+- `src/WorldMap.tsx`, `src/worldmap.ts`: level progression map (generated from the level list, so new levels extend the path automatically).
+- `src/progress.ts`: saved progress (stars, unlocking, reset).
+- `tools/check-levels.ts`, `tools/solver.ts`: run `pnpm check-levels` (add `-- -v` to print the maps) to see, for each level, what floods without protection, the minimum number of tubes needed to save everything, and whether a simple bot can build it in time following the tractor rules.
