@@ -1,18 +1,18 @@
 // World map for the level progression screen: a pixel-art landscape with a
 // winding path linking the levels. Generated from the number of levels, so
 // adding levels in levels.ts extends the map automatically.
-import { CONFIG } from "./config.ts";
 import {
-  drawSoil,
-  drawRelief,
-  drawTubes,
-  drawHouses,
-  drawWater,
+  drawScene,
+  drawTractorAt,
   px,
   hash,
-  sprite,
+  sceneFor,
+  topY,
+  TW,
+  TD,
+  LH,
 } from "./render.ts";
-import { TRACTOR_RIGHT, TRACTOR_PALETTE, orient } from "./sprites.ts";
+import type { Scene } from "./render.ts";
 import type { ObjectType, Point, Terrain } from "./types.ts";
 
 export type NodeStatus = "locked" | "open" | "done";
@@ -26,9 +26,9 @@ export interface World {
   /** path tiles between consecutive levels, in walking order */
   pathOrder: number[][];
   state: Terrain;
+  scene: Scene;
 }
 
-const T = CONFIG.TILE_PX;
 const PER_ROW = 6;
 const MAP_W = 20;
 
@@ -83,14 +83,25 @@ export function buildWorld(count: number): World {
       const v =
         1.3 +
         (h - 1 - y) * 0.42 +
-        (hash(x, y, 7) - 0.5) * 1.3 +
+        (hash(x, y, 7) - 0.5) * 0.7 +
         Math.sin(x * 0.7 + y * 0.3) * 0.5;
       base[at(x, y)] = Math.max(1, Math.min(6, Math.round(v)));
     }
   }
   // flatten path & nodes a bit so the road looks walkable
   for (let i = 0; i < N; i++)
-    if (path[i]) base[i] = Math.max(1, Math.min(base[i], 4));
+    if (path[i])
+      base[i] = Math.max(
+        1,
+        Math.min(4, Math.round(1.3 + (h - 1 - Math.floor(i / w)) * 0.42)),
+      );
+  // low coast along the sea at the back, otherwise the hills in front would hide it
+  for (let y = 0; y < Math.min(3, h); y++) {
+    for (let x = 0; x < w; x++) {
+      const coast = x >= 6 || path[at(x, y)];
+      if (coast) base[at(x, y)] = Math.min(base[at(x, y)], y + 1);
+    }
+  }
 
   const water = new Array<boolean>(N).fill(false);
   const wet = (x: number, y: number): void => {
@@ -169,101 +180,112 @@ export function buildWorld(count: number): World {
     waterLevel: 0,
     clock: 0,
   };
-  return { w, h, nodes, path, bridge, pathOrder, state };
+  return {
+    w,
+    h,
+    nodes,
+    path,
+    bridge,
+    pathOrder,
+    state,
+    scene: sceneFor(state),
+  };
 }
 
-function drawPath(
+/** Screen position (logical pixels) of the centre of a level's square */
+export function nodeScreen(world: World, i: number): Point {
+  const n = world.nodes[i];
+  const b = world.state.base[n.y * world.w + n.x];
+  return { x: n.x * TW + TW / 2, y: topY(world.scene, n.y, b) + TD / 2 };
+}
+
+// Dirt path on the top face of a square
+function drawPathTile(
   ctx: CanvasRenderingContext2D,
   world: World,
-  doneUpTo: number,
+  x: number,
+  y: number,
+  travelled: boolean,
 ): void {
-  const { w, h, path, bridge } = world;
-  const isP = (x: number, y: number): boolean =>
-    x >= 0 && y >= 0 && x < w && y < h && path[y * w + x];
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = y * w + x;
-      if (!path[i]) continue;
-      const X = x * T,
-        Y = y * T;
-      const L = isP(x - 1, y),
-        R = isP(x + 1, y),
-        U = isP(x, y - 1),
-        D = isP(x, y + 1);
-      if (bridge[i]) {
-        const vert = U || D;
-        // wooden planks with rails
-        if (vert) {
-          px(ctx, X + 3, Y, 10, T, "#8b5a2b");
-          for (let k = 0; k < T; k += 3)
-            px(ctx, X + 3, Y + k, 10, 1, "#5e3a17");
-          px(ctx, X + 2, Y, 1, T, "#3d2610");
-          px(ctx, X + 13, Y, 1, T, "#3d2610");
-        } else {
-          px(ctx, X, Y + 3, T, 10, "#8b5a2b");
-          for (let k = 0; k < T; k += 3)
-            px(ctx, X + k, Y + 3, 1, 10, "#5e3a17");
-          px(ctx, X, Y + 2, T, 1, "#3d2610");
-          px(ctx, X, Y + 13, T, 1, "#3d2610");
-        }
-        continue;
-      }
-      const dirt = "#d8b878",
-        edge = "#a7824a";
-      px(ctx, X + 4, Y + 4, 8, 8, dirt);
-      if (L) px(ctx, X, Y + 4, 4, 8, dirt);
-      if (R) px(ctx, X + 12, Y + 4, 4, 8, dirt);
-      if (U) px(ctx, X + 4, Y, 8, 4, dirt);
-      if (D) px(ctx, X + 4, Y + 12, 8, 4, dirt);
-      // edges
-      if (!U) px(ctx, X + 4, Y + 4, 8, 1, edge);
-      if (!D) px(ctx, X + 4, Y + 11, 8, 1, edge);
-      if (!L) px(ctx, X + 4, Y + 4, 1, 8, edge);
-      if (!R) px(ctx, X + 11, Y + 4, 1, 8, edge);
-      // pebbles
-      if (hash(x, y, 5) < 0.5)
-        px(
-          ctx,
-          X + 6 + Math.floor(hash(x, y, 6) * 4),
-          Y + 6 + Math.floor(hash(x, y, 8) * 4),
-          1,
-          1,
-          edge,
-        );
-    }
+  const { w, h, path, bridge, scene, state } = world;
+  const i = y * w + x;
+  if (!path[i] || bridge[i]) return;
+  const isP = (xx: number, yy: number): boolean =>
+    xx >= 0 && yy >= 0 && xx < w && yy < h && path[yy * w + xx];
+  const X = x * TW;
+  const Y = topY(scene, y, state.base[i]);
+  const L = isP(x - 1, y),
+    R = isP(x + 1, y),
+    U = isP(x, y - 1),
+    D = isP(x, y + 1);
+  const dirt = "#d8b878",
+    edge = "#a7824a";
+  px(ctx, X + 4, Y + 3, 8, 6, dirt);
+  if (L) px(ctx, X, Y + 3, 4, 6, dirt);
+  if (R) px(ctx, X + 12, Y + 3, 4, 6, dirt);
+  if (U) px(ctx, X + 4, Y, 8, 3, dirt);
+  if (D) px(ctx, X + 4, Y + 9, 8, 3, dirt);
+  if (!U)
+    px(ctx, X + (L ? 0 : 4), Y + 3, (L ? 4 : 0) + 8 + (R ? 4 : 0), 1, edge);
+  if (!D)
+    px(ctx, X + (L ? 0 : 4), Y + 8, (L ? 4 : 0) + 8 + (R ? 4 : 0), 1, edge);
+  if (!L)
+    px(ctx, X + 4, Y + (U ? 0 : 3), 1, (U ? 3 : 0) + 6 + (D ? 3 : 0), edge);
+  if (!R)
+    px(ctx, X + 11, Y + (U ? 0 : 3), 1, (U ? 3 : 0) + 6 + (D ? 3 : 0), edge);
+  if (hash(x, y, 5) < 0.5)
+    px(ctx, X + 6 + Math.floor(hash(x, y, 6) * 4), Y + 5, 1, 1, edge);
+  if (travelled) {
+    // footprints on the part of the path already travelled
+    px(ctx, X + 6, Y + 5, 2, 2, "#8a6a3a");
+    px(ctx, X + 9, Y + 5, 2, 2, "#8a6a3a");
   }
-  // footprints on the part of the path already travelled
-  world.pathOrder.forEach((seg, k) => {
-    if (k >= doneUpTo) return;
-    seg.forEach((i) => {
-      if (bridge[i]) return;
-      const X = (i % w) * T,
-        Y = Math.floor(i / w) * T;
-      px(ctx, X + 6, Y + 7, 2, 2, "#8a6a3a");
-      px(ctx, X + 9, Y + 7, 2, 2, "#8a6a3a");
-    });
-  });
 }
 
-function drawNodeBases(
+// Wooden bridge where the path crosses water, slightly above the water
+function drawBridge(
   ctx: CanvasRenderingContext2D,
   world: World,
-  statuses: NodeStatus[],
+  x: number,
+  y: number,
 ): void {
-  world.nodes.forEach((n, i) => {
-    const X = n.x * T,
-      Y = n.y * T;
-    const st = statuses[i];
-    const rim =
-      st === "locked" ? "#4a4e63" : st === "done" ? "#e7c94a" : "#ffffff";
-    // round stone platform
-    px(ctx, X + 3, Y + 1, 10, 14, rim);
-    px(ctx, X + 1, Y + 3, 14, 10, rim);
-    px(ctx, X + 2, Y + 2, 12, 12, rim);
-    px(ctx, X + 4, Y + 2, 8, 12, "#2a2e45");
-    px(ctx, X + 2, Y + 4, 12, 8, "#2a2e45");
-    px(ctx, X + 3, Y + 3, 10, 10, "#2a2e45");
-  });
+  const { w, h, path, bridge, scene } = world;
+  const i = y * w + x;
+  if (!bridge[i]) return;
+  const isP = (xx: number, yy: number): boolean =>
+    xx >= 0 && yy >= 0 && xx < w && yy < h && path[yy * w + xx];
+  const X = x * TW;
+  const Y = topY(scene, y, 1) + 1;
+  if (isP(x, y - 1) || isP(x, y + 1)) {
+    px(ctx, X + 3, Y - 2, 10, TD + 2, "#8b5a2b");
+    for (let k = 0; k < TD; k += 3) px(ctx, X + 3, Y - 2 + k, 10, 1, "#5e3a17");
+    px(ctx, X + 2, Y - 3, 1, TD + 3, "#3d2610");
+    px(ctx, X + 13, Y - 3, 1, TD + 3, "#3d2610");
+  } else {
+    px(ctx, X, Y + 2, TW, 7, "#8b5a2b");
+    for (let k = 0; k < TW; k += 3) px(ctx, X + k, Y + 2, 1, 7, "#5e3a17");
+    px(ctx, X, Y + 9, TW, LH - 1, "#5e3a17"); // front of the deck
+    px(ctx, X, Y + 1, TW, 1, "#3d2610");
+  }
+}
+
+// Round stone platform under each level
+function drawNodeBase(
+  ctx: CanvasRenderingContext2D,
+  world: World,
+  i: number,
+  status: NodeStatus,
+): void {
+  const c = nodeScreen(world, i);
+  const X = c.x - TW / 2,
+    Y = c.y - TD / 2;
+  const rim =
+    status === "locked" ? "#4a4e63" : status === "done" ? "#e7c94a" : "#ffffff";
+  px(ctx, X + 3, Y, 10, TD, rim);
+  px(ctx, X + 1, Y + 2, 14, TD - 4, rim);
+  px(ctx, X + 4, Y + 1, 8, TD - 2, "#2a2e45");
+  px(ctx, X + 2, Y + 3, 12, TD - 6, "#2a2e45");
+  px(ctx, X + 1, Y + TD - 2, 14, 2, "#15172a"); // thickness of the platform
 }
 
 export function drawWorld(
@@ -273,29 +295,36 @@ export function drawWorld(
   current: number,
   time: number,
 ): void {
-  ctx.imageSmoothingEnabled = false;
-  const s = world.state;
-  s.clock = time;
-  drawSoil(ctx, s);
-  drawRelief(ctx, s);
-  drawWater(ctx, s, time);
+  world.state.clock = time;
   const done = statuses.filter((st) => st === "done").length;
-  drawPath(ctx, world, done);
-  drawTubes(ctx, s);
-  drawHouses(ctx, s);
-  drawNodeBases(ctx, world, statuses);
-  // the tractor waits next to the current level
-  const n = world.nodes[current];
-  if (n) {
-    const img = sprite(
-      "tractor-right",
-      orient(TRACTOR_RIGHT, "right"),
-      TRACTOR_PALETTE,
-    );
-    const bob = Math.floor(time / 300) % 2;
-    const tx = n.x * T - 14,
-      ty = n.y * T - 9 - bob;
-    px(ctx, tx + 2, ty + 4, 13, 12, "rgba(0,0,0,0.25)");
-    ctx.drawImage(img, tx, ty);
-  }
+  const travelled = new Set<number>();
+  world.pathOrder.forEach((seg, k) => {
+    if (k < done) seg.forEach((t) => travelled.add(t));
+  });
+  const nodeIndex = new Map(
+    world.nodes.map((n, i): [number, number] => [n.y * world.w + n.x, i]),
+  );
+  const cur = world.nodes[current];
+  drawScene(ctx, world.scene, world.state, time, {
+    surface: (x, y) => {
+      const i = y * world.w + x;
+      drawPathTile(ctx, world, x, y, travelled.has(i));
+      const n = nodeIndex.get(i);
+      if (n !== undefined) drawNodeBase(ctx, world, n, statuses[n]);
+    },
+    overWater: (x, y) => drawBridge(ctx, world, x, y),
+    afterRow: (y) => {
+      if (!cur || y !== cur.y) return;
+      // the tractor waits next to the current level
+      const bob = Math.floor(time / 300) % 2;
+      const b = world.state.base[cur.y * world.w + cur.x];
+      drawTractorAt(
+        ctx,
+        world.scene,
+        "right",
+        { x: cur.x - 0.9, y: cur.y - bob * 0.08 },
+        b,
+      );
+    },
+  });
 }

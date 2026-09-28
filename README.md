@@ -68,7 +68,7 @@ In the tutorials, each tip appears in the middle of the field and pauses the gam
 - `src/levels.ts`: level definitions (height grid plus object grid). Add levels here.
 - `src/types.ts`: shared types (levels, game state, events).
 - `src/engine.ts`: pure game logic (movement, building, flooding, scoring).
-- `src/render.ts`, `src/sprites.ts`: pixel-art canvas renderer.
+- `src/render.ts`, `src/sprites.ts`: pixel-art canvas renderer, in a 3/4 view: each square is a 16×12 block raised by `LEVEL_PX` per elevation level, drawn back to front. Tubes are drawn from a small height field, so straight pieces, ends, corners, T and cross junctions all connect.
 - `src/Game.tsx`, `src/App.tsx`: React UI (HUD, input, tutorial popups).
 - `src/WorldMap.tsx`, `src/worldmap.ts`: level progression map (generated from the level list, so new levels extend the path automatically).
 - `src/progress.ts`: saved progress (stars, unlocking, reset).

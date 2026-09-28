@@ -1,5 +1,6 @@
-// 16x16 pixel-art sprites. Each character maps to a colour in the palette;
-// '.' is transparent.
+// Pixel-art sprites for the 3/4 view. Each character maps to a colour in the
+// palette; '.' is transparent. Sprites are 16 px wide and are drawn with
+// their bottom row on the front edge of the square they stand on.
 import type { Dir } from "./types.ts";
 
 export type Palette = Record<string, string>;
@@ -14,27 +15,68 @@ export const TRACTOR_PALETTE: Palette = {
   Y: "#ffd23f", // light
   S: "#9aa3ad", // blade
   s: "#5f6770", // blade shade
+  x: "rgba(0,0,0,0.3)", // shadow
 };
 
-// Facing right (blade at the front)
-export const TRACTOR_RIGHT: string[] = [
-  "................",
-  ".KkKkK....KkK...",
-  ".kKkKk....kKk...",
-  ".KkKkK....KkK...",
-  "..oooooooooooo.S",
-  "..oCCCCOOOOOOY.S",
-  "..oCWWCOOOOOOO.S",
-  "..oCWWCOOOOOOOsS",
-  "..oCWWCOOOOOOOsS",
-  "..oCWWCOOOOOOO.S",
-  "..oCCCCOOOOOOY.S",
-  "..oooooooooooo.S",
-  ".KkKkK....KkK...",
-  ".kKkKk....kKk...",
-  ".KkKkK....KkK...",
-  "................",
-];
+// One sprite per direction (seen slightly from above and from the front)
+export const TRACTOR: Record<Dir, string[]> = {
+  down: [
+    "................",
+    "................",
+    ".....CCCCCC.....",
+    "....CWWWWWWC....",
+    "..KKCWWWWWWCKK..",
+    "..KkCCCCCCCCkK..",
+    "..KkOOOOOOOOkK..",
+    "..KkOOOOOOOOkK..",
+    "..KKooooooooKK..",
+    "...KOOOOOOOOK...",
+    "...KOOOOOOOOK...",
+    "...KoYooooYoK...",
+    "..SSSSSSSSSSSS..",
+    "..ssssssssssss..",
+    "...xxxxxxxxxx...",
+    "................",
+  ],
+  up: [
+    "................",
+    "....SSSSSSSS....",
+    "....ssssssss....",
+    "...KOOOOOOOOK...",
+    "...KOOOOOOOOK...",
+    "...KooooooooK...",
+    "..KKCCCCCCCCKK..",
+    "..KkCWWWWWWCkK..",
+    "..KkCWWWWWWCkK..",
+    "..KkCCCCCCCCkK..",
+    "..KkOOOOOOOOkK..",
+    "..KkooooooookK..",
+    "..KKooooooooKK..",
+    "..KK........KK..",
+    "...xxxxxxxxxx...",
+    "................",
+  ],
+  right: [
+    "................",
+    "................",
+    "...CCCCC........",
+    "...CWWWC........",
+    "...CWWWC........",
+    "...CCCCCOOOOO...",
+    "..OOOOOOOOOOOO.S",
+    "..OOOOOOOOOOOOYS",
+    "..oooooooooooo.S",
+    ".KKKK......KK.sS",
+    "KkkkkK....KkkK..",
+    "KkKKkK....KkkK..",
+    "KkkkkK.....KK...",
+    ".KKKK...........",
+    "..xxxxxxxxxxxx..",
+    "................",
+  ],
+  left: [], // mirror of `right`, filled below
+};
+TRACTOR.left = TRACTOR.right.map((r) => [...r].reverse().join(""));
 
 export const HOUSE_PALETTE: Palette = {
   R: "#c0392b",
@@ -49,50 +91,53 @@ export const HOUSE_PALETTE: Palette = {
   x: "rgba(0,0,0,0.28)", // shadow
 };
 
+// Roof (ridge left-right) seen from above, then the front wall
 export const HOUSE: string[] = [
   "................",
-  "..rrrrrrrrrrrr..",
-  ".rRRRRRRRRRcCRR.",
-  ".rRRRRRRRRRCCRR.",
-  ".rRRRRRRRRRRRRRx",
-  ".rRRRRRRRRRRRRRx",
-  ".DDDDDDDDDDDDDDx",
-  ".RRRRRRRRRRRRRRx",
-  ".RRRRRRRRRRRRRRx",
-  ".RRRRRRRRRRRRRRx",
-  ".DDDDDDDDDDDDDDx",
-  "..WWWWWWWWWWWWxx",
-  "..WBBWWddWWBBWxx",
-  "..WBBWWddWWBBWxx",
-  "..wwwwwddwwwwwxx",
-  "...xxxxxxxxxxxxx",
+  "...........cc...",
+  "..DDDDDDDDDcCD..",
+  ".rRRRRRRRRRRRRr.",
+  ".RRrRRRRRRrRRRR.",
+  "rRRRRRRRRRRRRRRr",
+  "RRRRrRRRRRRRrRRR",
+  "RRRRRRRRRRRRRRRR",
+  "DDDDDDDDDDDDDDDD",
+  ".WWWWWWWWWWWWWW.",
+  ".WBBWWWWWWWWBBW.",
+  ".WBBWWWddWWWBBW.",
+  ".WWWWWWddWWWWWW.",
+  ".WWWWWWddWWWWWW.",
+  ".wwwwwwddwwwwww.",
+  ".xxxxxxxxxxxxxx.",
 ];
 
 export const TREE_PALETTE: Palette = {
   G: "#2f7d32",
   g: "#1d5621",
   l: "#57b05b",
-  b: "#6b3d1f",
+  b: "#5a3413",
+  B: "#7a4a22",
   x: "rgba(0,0,0,0.3)",
 };
 
 export const TREE: string[] = [
-  "................",
-  ".....gGGGGg.....",
-  "....GGllGGGg....",
+  "......gGGg......",
+  "....gGllGGGg....",
   "...GllllGGGGg...",
   "..gGlllGGGGGGg..",
   "..GGllGGGGGGGg..",
-  "..GGGGGGGGGGGgx.",
-  "..gGGGGGGGGGGgx.",
-  "..gGGGGGGGGGggx.",
-  "...gGGGGGGGGgxx.",
-  "....ggGGGGggxx..",
-  ".....xggggxxx...",
-  ".......bb.......",
-  ".......bbx......",
-  "........x.......",
-  "................",
+  ".gGGGGGGGGGGGGg.",
+  ".GGGGGGGGGGGGGg.",
+  ".gGGGGGGGGGGGgg.",
+  "..gGGGGGGGGGGg..",
+  "..ggGGGGGGGggg..",
+  "...gggGGGggg....",
+  ".....ggggg......",
+  ".......bB.......",
+  ".......bB.......",
+  ".......bB.......",
+  ".....xxbBxx.....",
+  "....xxxxxxxx....",
 ];
 
 function check(name: string, rows: string[]): void {
@@ -101,33 +146,11 @@ function check(name: string, rows: string[]): void {
       throw new Error(`sprite ${name} row ${i} has length ${r.length}`);
   });
 }
-check("tractor", TRACTOR_RIGHT);
+(Object.keys(TRACTOR) as Dir[]).forEach((d) =>
+  check(`tractor-${d}`, TRACTOR[d]),
+);
 check("house", HOUSE);
 check("tree", TREE);
-
-// Rotate a right-facing sprite to face another direction
-export function orient(rows: string[], dir: Dir): string[] {
-  const n = rows.length;
-  const out = Array.from({ length: n }, () => new Array<string>(n).fill("."));
-  for (let oy = 0; oy < n; oy++) {
-    for (let ox = 0; ox < n; ox++) {
-      const c = rows[oy][ox];
-      let nx = ox;
-      let ny = oy;
-      if (dir === "left") {
-        nx = n - 1 - ox;
-      } else if (dir === "down") {
-        nx = n - 1 - oy;
-        ny = ox;
-      } else if (dir === "up") {
-        nx = oy;
-        ny = n - 1 - ox;
-      }
-      out[ny][nx] = c;
-    }
-  }
-  return out.map((r) => r.join(""));
-}
 
 // 3x5 pixel digits for the debug height overlay
 export const DIGITS: Record<number, string[]> = {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { CONFIG } from "./config.ts";
 import * as E from "./engine.ts";
-import { render } from "./render.ts";
+import { render, sceneFor } from "./render.ts";
 import { sfx } from "./sound.ts";
 import type {
   BuildBlocker,
@@ -418,7 +418,7 @@ export default function Game({
         }
         const ctx = canvas.getContext("2d");
         if (ctx)
-          render(ctx, s, {
+          render(ctx, sceneFor(s), s, {
             time: now,
             tractorPos: view.pos,
             showHeights: view.showHeights,
@@ -438,13 +438,12 @@ export default function Game({
   }, [showBanner, showToast]);
 
   const s = stateRef.current;
-  const w = s?.w ?? 12,
-    h = s?.h ?? 12;
+  const scene = s ? sceneFor(s) : null;
+  const W = scene?.width ?? 192;
+  const H = scene?.height ?? 192;
   const scale = CONFIG.SCALE;
-  const stageW = Math.max(CONFIG.STAGE_MIN_W, w * CONFIG.TILE_PX * scale + 16);
-  const stageH = Math.max(CONFIG.STAGE_MIN_H, h * CONFIG.TILE_PX * scale + 16);
-  const W = w * CONFIG.TILE_PX,
-    H = h * CONFIG.TILE_PX;
+  const stageW = Math.max(CONFIG.STAGE_MIN_W, W * scale + 16);
+  const stageH = Math.max(CONFIG.STAGE_MIN_H, H * scale + 16);
   const warn =
     hud &&
     hud.phase === "build" &&
