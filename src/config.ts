@@ -44,9 +44,7 @@ export const CONFIG = {
   // (a level can override thresholds with `stars: [a, b, c]`)
 
   // ---- Display ------------------------------------------------------------------
-  TILE_PX: 16, // width of a square in logical pixels (pixel art)
-  TILE_DEPTH_PX: 12, // on-screen depth of a square (3/4 view: 16 wide x 12 deep)
-  LEVEL_PX: 4, // how many pixels one elevation level raises a square
+  TILE_PX: 16, // logical pixel size of a square (pixel art)
   SCALE: 3, // on-screen zoom of the pixel art (same for every level)
   STAGE_MIN_W: 576, // small maps are centred in a stage of at least
   STAGE_MIN_H: 576, //   this size (screen pixels)

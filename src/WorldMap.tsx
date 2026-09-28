@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CONFIG } from "./config.ts";
 import { LEVELS } from "./levels.ts";
-import { buildWorld, drawWorld, nodeScreen } from "./worldmap.ts";
+import { buildWorld, drawWorld } from "./worldmap.ts";
 import type { NodeStatus } from "./worldmap.ts";
 import { isUnlocked, starsOf, currentLevel, totalStars } from "./progress.ts";
 import type { Progress } from "./progress.ts";
 import { levelAmplitude, levelBudget, levelTimer } from "./engine.ts";
 
 const SCALE = CONFIG.SCALE;
+const T = CONFIG.TILE_PX;
 
 function LockIcon() {
   return (
@@ -106,8 +107,8 @@ export default function WorldMap({ progress, onPlay, onReset }: WorldMapProps) {
   const lvl = LEVELS[sel];
   const selUnlocked = isUnlocked(progress, sel);
   const total = totalStars(progress);
-  const W = world.scene.width * SCALE,
-    H = world.scene.height * SCALE;
+  const W = world.w * T * SCALE,
+    H = world.h * T * SCALE;
 
   return (
     <div className="map-screen" style={{ width: W }}>
@@ -142,20 +143,19 @@ export default function WorldMap({ progress, onPlay, onReset }: WorldMapProps) {
       <div className="map" style={{ width: W, height: H }}>
         <canvas
           ref={canvasRef}
-          width={world.scene.width}
-          height={world.scene.height}
+          width={world.w * T}
+          height={world.h * T}
           style={{ width: W, height: H }}
         />
-        {world.nodes.map((_, i) => {
+        {world.nodes.map((n, i) => {
           const st = statuses[i];
-          const pos = nodeScreen(world, i);
           return (
             <button
               key={i}
               className={`node ${st} ${i === sel ? "sel" : ""} ${i === current ? "current" : ""}`}
               style={{
-                left: pos.x * SCALE,
-                top: pos.y * SCALE,
+                left: n.x * T * SCALE + (T * SCALE) / 2,
+                top: n.y * T * SCALE + (T * SCALE) / 2,
               }}
               onClick={() => {
                 if (st !== "locked") {

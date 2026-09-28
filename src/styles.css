@@ -300,7 +300,9 @@ button:active {
 }
 .board {
   position: relative;
-  filter: drop-shadow(6px 6px 0 rgba(0, 0, 0, 0.8));
+  border: 4px solid var(--border);
+  box-shadow: 6px 6px 0 #000;
+  box-sizing: content-box;
 }
 .tip-overlay {
   background: rgba(10, 12, 24, 0.2);
@@ -463,7 +465,9 @@ button:disabled:hover {
 
 .map {
   position: relative;
-  filter: drop-shadow(6px 6px 0 rgba(0, 0, 0, 0.8));
+  border: 4px solid var(--border);
+  box-shadow: 6px 6px 0 #000;
+  box-sizing: content-box;
 }
 .map canvas {
   display: block;
