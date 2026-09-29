@@ -3,9 +3,28 @@ import { CONFIG } from "./config.ts";
 import { LEVELS } from "./levels.ts";
 import { buildWorld, drawWorld } from "./worldmap.ts";
 import type { NodeStatus } from "./worldmap.ts";
-import { isUnlocked, starsOf, currentLevel, totalStars } from "./progress.ts";
+import {
+  isUnlocked,
+  starsOf,
+  currentLevel,
+  totalStars,
+  MAIN_PATH,
+} from "./progress.ts";
 import type { Progress } from "./progress.ts";
-import { levelAmplitude, levelBudget, levelTimer } from "./engine.ts";
+import {
+  levelAmplitude,
+  levelBudget,
+  levelTimer,
+  levelWaves,
+} from "./engine.ts";
+
+// order used by the arrow keys: each main level, followed by its side levels
+const MAP_ORDER: number[] = MAIN_PATH.flatMap((i) => [
+  i,
+  ...LEVELS.map((_, j) => j).filter(
+    (j) => LEVELS[j].branchFrom === LEVELS[i].id,
+  ),
+]);
 
 const SCALE = CONFIG.SCALE;
 const T = CONFIG.TILE_PX;
@@ -44,7 +63,7 @@ interface WorldMapProps {
 }
 
 export default function WorldMap({ progress, onPlay, onReset }: WorldMapProps) {
-  const world = useMemo(() => buildWorld(LEVELS.length), []);
+  const world = useMemo(() => buildWorld(), []);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const current = currentLevel(progress);
   const [sel, setSel] = useState(current);
@@ -87,13 +106,20 @@ export default function WorldMap({ progress, onPlay, onReset }: WorldMapProps) {
       }
       if (e.key === "ArrowRight" || e.key === "ArrowUp") {
         e.preventDefault();
-        setSel((s) =>
-          s + 1 < LEVELS.length && isUnlocked(progress, s + 1) ? s + 1 : s,
-        );
+        setSel((s) => {
+          const k = MAP_ORDER.indexOf(s);
+          const next = MAP_ORDER.slice(k + 1).find((j) =>
+            isUnlocked(progress, j),
+          );
+          return next ?? s;
+        });
       }
       if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
         e.preventDefault();
-        setSel((s) => Math.max(0, s - 1));
+        setSel((s) => {
+          const k = MAP_ORDER.indexOf(s);
+          return k > 0 ? MAP_ORDER[k - 1] : s;
+        });
       }
       if ((e.key === "Enter" || e.key === " ") && isUnlocked(progress, sel)) {
         e.preventDefault();
@@ -147,12 +173,28 @@ export default function WorldMap({ progress, onPlay, onReset }: WorldMapProps) {
           height={world.h * T}
           style={{ width: W, height: H }}
         />
+        {world.worldStarts.map(({ index, name }) => {
+          const n = world.nodes[index];
+          return (
+            <div
+              key={"w" + name}
+              className="signpost"
+              style={{
+                left: n.x * T * SCALE + (T * SCALE) / 2,
+                top: n.y * T * SCALE - 26,
+              }}
+            >
+              {name.toUpperCase()}
+            </div>
+          );
+        })}
         {world.nodes.map((n, i) => {
           const st = statuses[i];
+          if (n.x < 0) return null;
           return (
             <button
               key={i}
-              className={`node ${st} ${i === sel ? "sel" : ""} ${i === current ? "current" : ""}`}
+              className={`node ${st} ${i === sel ? "sel" : ""} ${i === current ? "current" : ""} ${LEVELS[i].branchFrom ? "side" : ""}`}
               style={{
                 left: n.x * T * SCALE + (T * SCALE) / 2,
                 top: n.y * T * SCALE + (T * SCALE) / 2,
@@ -177,12 +219,18 @@ export default function WorldMap({ progress, onPlay, onReset }: WorldMapProps) {
 
       <div className="panel level-card">
         <div className="level-card-main">
-          <div className="small">LEVEL {lvl.id.toUpperCase()}</div>
+          <div className="small">
+            {lvl.branchFrom
+              ? `SIDE LEVEL ${lvl.id.toUpperCase()} · OPTIONAL · BRANCHES OFF LEVEL ${lvl.branchFrom.toUpperCase()}`
+              : `LEVEL ${lvl.id.toUpperCase()}`}
+          </div>
           <h2>{lvl.name}</h2>
           <p className="level-card-intro">
             {selUnlocked
               ? lvl.intro
-              : "Pass the previous level to unlock this one."}
+              : lvl.branchFrom
+                ? `Pass level ${lvl.branchFrom.toUpperCase()} to unlock this side level.`
+                : "Pass the previous level to unlock this one."}
           </p>
           <div className="facts left">
             <span>
@@ -192,8 +240,20 @@ export default function WorldMap({ progress, onPlay, onReset }: WorldMapProps) {
               </b>
             </span>
             <span>
-              FLOOD <b>+{levelAmplitude(lvl)}</b>
+              {levelWaves(lvl).length > 1 ? "WAVES" : "FLOOD"}{" "}
+              <b>
+                {levelWaves(lvl).length > 1
+                  ? levelWaves(lvl)
+                      .map((wv) => `+${wv.rise}`)
+                      .join(" ")
+                  : `+${levelAmplitude(lvl)}`}
+              </b>
             </span>
+            {lvl.night && (
+              <span>
+                <b>NIGHT</b>
+              </span>
+            )}
             <span>
               TUBES <b>{levelBudget(lvl)}</b>
             </span>

@@ -1,7 +1,16 @@
 // Shared types for the whole game.
 
 export type Dir = "up" | "down" | "left" | "right";
-export type ObjectType = "house" | "road" | "tree";
+export type ObjectType =
+  | "house"
+  | "road"
+  | "tree"
+  | "building"
+  | "shop"
+  | "field"
+  | "pine"
+  | "rock"
+  | "boulder";
 export type Phase = "intro" | "build" | "flood" | "done";
 
 export interface TutorialStep {
@@ -12,9 +21,17 @@ export interface TutorialStep {
   mark?: [number, number][];
 }
 
+/** One rise of the water. After it, `pause` seconds to build before the next one. */
+export interface Wave {
+  rise: number;
+  pause?: number;
+}
+
 export interface Level {
   id: string;
   name: string;
+  /** side level: branches off the main path after this level id (optional) */
+  branchFrom?: string;
   /** seconds before the water rises (0 = no limit, press F) */
   timer?: number;
   floodAmplitude?: number;
@@ -25,6 +42,12 @@ export interface Level {
   stars?: number[];
   startDir?: Dir;
   intro?: string;
+  /** short explanation shown before the level starts (new mechanic...) */
+  explainer?: string;
+  /** several waves instead of one flood (overrides floodAmplitude) */
+  waves?: Wave[];
+  /** night level: only the area around the tractor is visible */
+  night?: boolean;
   tutorial?: TutorialStep[];
   heights: string[];
   objects: string[];
@@ -50,7 +73,7 @@ export interface Terrain {
 }
 
 export interface Action {
-  type: "build" | "remove";
+  type: "build" | "remove" | "cut";
   x: number;
   y: number;
   elapsed: number;
@@ -73,6 +96,13 @@ export interface Result {
 
 export interface GameState extends Terrain {
   level: Level;
+  /** cracked dike squares: they break when the water pushes on them */
+  cracked: boolean[];
+  waves: Wave[];
+  /** index of the current (or next) wave */
+  wave: number;
+  /** water level after the last wave */
+  finalLevel: number;
   targetLevel: number;
   phase: Phase;
   noTimer: boolean;
@@ -90,7 +120,9 @@ export interface GameState extends Terrain {
 
 export type GameEvent =
   | { type: "tutorial"; step: number }
-  | { type: "built" | "removed" | "cancel" }
+  | { type: "built" | "removed" | "cancel" | "cut" | "pushed" }
+  | { type: "wave-break"; wave: number }
+  | { type: "breach"; x: number; y: number }
   | { type: "flood-start" }
   | { type: "rise"; level: number }
   | { type: "lost"; count: number }

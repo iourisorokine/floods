@@ -2,7 +2,7 @@
 //  FLOODS — balancing & tuning variables
 //  Everything you may want to tweak by hand lives in this file.
 //  (Per-level values such as timer, flood amplitude and tube budget live in
-//   src/levels.js — the values below are the defaults a level falls back to.)
+//   src/levels.ts — the values below are the defaults a level falls back to.)
 // ============================================================================
 
 import type { ObjectType } from "./types.ts";
@@ -19,6 +19,9 @@ export const CONFIG = {
   FIRST_RISE_DELAY_SECONDS: 0.5, // delay between "time's up" and the first rise
   SPREAD_STEP_MS: 180, // water advances one square every N ms
   SETTLE_SECONDS: 2, // wait after the last rise before scoring
+  DEFAULT_WAVE_PAUSE_SECONDS: 20, // building time between two waves
+  CRACK_DROP: 2, // levels a cracked dike loses when it breaks
+  CRACK_BREAK_MARGIN: 1, // it breaks when the water is this close to its top
 
   // ---- Tractor ----------------------------------------------------------------
   BUILD_TIME_SECONDS: 2, // time to build one tube (tractor can't move meanwhile)
@@ -31,6 +34,9 @@ export const CONFIG = {
   CAN_BUILD_ON_WATER: false, // allow building on water squares
   CAN_BUILD_ON_OBJECTS: false, // allow building on houses / roads
   TRACTOR_CAN_DRIVE_ON_ROADS: true,
+  CUT_TIME_SECONDS: 3, // time to cut down a pine tree
+  FIELD_SLOWDOWN: 2, // driving over a field is this many times slower
+  ROCK_HEIGHT: 2, // rocks and boulders hold back water this many levels above the ground
 
   // ---- Scoring (fraction of objects saved) --------------------------------
   // Level passed if at least PASS_THRESHOLD of the objects survive.
@@ -40,6 +46,9 @@ export const CONFIG = {
     // weight of each object type in the % saved
     house: 1,
     road: 1,
+    building: 3,
+    shop: 2,
+    field: 0.5,
   } as Partial<Record<ObjectType, number>>,
   // (a level can override thresholds with `stars: [a, b, c]`)
 
@@ -53,6 +62,8 @@ export const CONFIG = {
   WARNING_SECONDS: 10, // timer blinks red below this
   SHOW_HEIGHT_NUMBERS: false, // debug: show elevation numbers (toggle with H)
   SOUND: true, // retro beeps
+  NIGHT_LIGHT_RADIUS: 3.2, // night levels: radius of the tractor's light, in squares
+  LIGHTNING_EVERY_SECONDS: 9, // night levels: a lightning flash shows the whole map
 
   // Soil colour per elevation (0 is always water)
   SOIL_COLORS: {

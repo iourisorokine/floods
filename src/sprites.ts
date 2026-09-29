@@ -95,6 +95,150 @@ export const TREE: string[] = [
   "................",
 ];
 
+// ---- landscape elements --------------------------------------------------
+export const BUILDING_PALETTE: Palette = {
+  G: "#4b505c",
+  g: "#8a8f99",
+  a: "#c9ccd2",
+  w: "#d9d2c3",
+  v: "#b8b0a0",
+  B: "#4a90c2",
+  b: "#2f6a99",
+  d: "#6b3d1f",
+  x: "rgba(0,0,0,0.28)",
+};
+
+export const BUILDING: string[] = [
+  "................",
+  ".GGGGGGGGGGGGGG.",
+  ".GggggggggaaggG.",
+  ".GggggggggaaggGx",
+  ".GggGGGgggggggGx",
+  ".GggGgGgggggggGx",
+  ".GGGGGGGGGGGGGGx",
+  ".wwwwwwwwwwwwwwx",
+  ".wBbwBbwBbwBbwwx",
+  ".wBbwBbwBbwBbwwx",
+  ".wwwwwwwwwwwwwwx",
+  ".wBbwBbwBbwBbwwx",
+  ".wBbwBbwddwBbwwx",
+  ".vvvvvvvddvvvvvx",
+  "..xxxxxxxxxxxxxx",
+  "................",
+];
+
+export const SHOP_PALETTE: Palette = {
+  M: "#6a4a91",
+  m: "#9b7cc4",
+  A: "#d64541",
+  r: "#f4f4f4",
+  w: "#f1e3c2",
+  v: "#cbb88f",
+  G: "#9fd6ff",
+  d: "#6b3d1f",
+  x: "rgba(0,0,0,0.28)",
+};
+
+export const SHOP: string[] = [
+  "................",
+  "................",
+  "..MMMMMMMMMMMM..",
+  ".MmmmmmmmmmmmmM.",
+  ".MmmmmmmmmmmmmMx",
+  ".MMMMMMMMMMMMMMx",
+  ".ArArArArArArArx",
+  ".ArArArArArArArx",
+  ".wwwwwwwwwwwwwwx",
+  ".wGGGGwwddwGGGwx",
+  ".wGGGGwwddwGGGwx",
+  ".vvvvvvvddvvvvvx",
+  "..xxxxxxxxxxxxxx",
+  "................",
+  "................",
+  "................",
+];
+
+export const PINE_PALETTE: Palette = {
+  G: "#1f5e3a",
+  g: "#123d25",
+  l: "#2f8a52",
+  b: "#5a3413",
+  x: "rgba(0,0,0,0.3)",
+};
+
+export const PINE: string[] = [
+  ".......gg.......",
+  "......gGGg......",
+  ".....gGlGGg.....",
+  "......gGGg......",
+  ".....gGlGGg.....",
+  "....gGlGGGGg....",
+  ".....gGGGGg.....",
+  "....gGlGGGGg....",
+  "...gGlGGGGGGg...",
+  "..gGlGGGGGGGGg..",
+  "...ggGGGGGGggx..",
+  ".....gggggg.xx..",
+  ".......bb..xx...",
+  ".......bbxx.....",
+  "........x.......",
+  "................",
+];
+
+export const ROCK_PALETTE: Palette = {
+  K: "#3a3a42",
+  L: "#8a8f99",
+  l: "#b7bcc4",
+  d: "#62666f",
+  x: "rgba(0,0,0,0.3)",
+};
+
+export const ROCK: string[] = [
+  "................",
+  "................",
+  ".....KKKK.......",
+  "....KllLLK......",
+  "...KlLLLLLK.KK..",
+  "..KlLLLLLLKKlLK.",
+  "..KLLLLLLLLKLLLK",
+  ".KlLLLLLLLLLLLLK",
+  ".KLLLLLLLLLLLLdK",
+  ".KLLLLLddLLLLddK",
+  "..KdddddKddddddK",
+  "...KKKKKxKKKKKKx",
+  "....xxxxxxxxxxx.",
+  "................",
+  "................",
+  "................",
+];
+
+export const BOULDER_PALETTE: Palette = {
+  K: "#4a3f35",
+  L: "#a58f76",
+  l: "#cbb89f",
+  d: "#7b6853",
+  x: "rgba(0,0,0,0.3)",
+};
+
+export const BOULDER: string[] = [
+  "................",
+  "................",
+  "......KKKK......",
+  "....KKllLLKK....",
+  "...KllLLLLLLK...",
+  "..KlLLLLLLLLLK..",
+  "..KlLLLLLLLLLK..",
+  ".KLLLLLLLLLLLdK.",
+  ".KLLLLLLLLLLddK.",
+  ".KLLLLLLLLLdddK.",
+  "..KdLLLLLLddddK.",
+  "..KKddddddddKK..",
+  "....KKKKKKKK....",
+  "...xxxxxxxxxx...",
+  "................",
+  "................",
+];
+
 function check(name: string, rows: string[]): void {
   rows.forEach((r, i) => {
     if (r.length !== 16)
@@ -104,6 +248,11 @@ function check(name: string, rows: string[]): void {
 check("tractor", TRACTOR_RIGHT);
 check("house", HOUSE);
 check("tree", TREE);
+check("building", BUILDING);
+check("shop", SHOP);
+check("pine", PINE);
+check("rock", ROCK);
+check("boulder", BOULDER);
 
 // Rotate a right-facing sprite to face another direction
 export function orient(rows: string[], dir: Dir): string[] {

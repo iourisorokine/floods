@@ -8,6 +8,7 @@ import {
   resetProgress,
   levelKey,
   isUnlocked,
+  nextMain,
 } from "./progress.ts";
 import type { Progress } from "./progress.ts";
 import type { Result } from "./types.ts";
@@ -21,7 +22,7 @@ export default function App() {
   const onReset = useCallback(() => setProgress(resetProgress()), []);
 
   const onNext = useCallback(() => {
-    setLevelIndex((i) => (i !== null && i + 1 < LEVELS.length ? i + 1 : null));
+    setLevelIndex((i) => (i !== null ? nextMain(i) : null));
   }, []);
 
   const onResult = useCallback(
@@ -44,8 +45,7 @@ export default function App() {
         <Game
           key={levelIndex}
           level={LEVELS[levelIndex]}
-          levelIndex={levelIndex}
-          levelCount={LEVELS.length}
+          hasNext={nextMain(levelIndex) !== null}
           onMenu={onMenu}
           onNext={onNext}
           onResult={onResult}

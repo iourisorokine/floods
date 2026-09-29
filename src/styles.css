@@ -591,3 +591,40 @@ button.play:hover:not(:disabled) {
   color: var(--muted);
   margin: 0;
 }
+
+/* ---------- mechanics explainers & waves ---------- */
+.intro-panel .explainer {
+  font-size: 9px;
+  line-height: 1.9;
+  text-align: left;
+  border: 2px solid var(--accent);
+  background: rgba(255, 205, 117, 0.08);
+  padding: 8px 10px;
+  margin: 10px 0;
+}
+.scale-row.final {
+  outline: 2px dotted #7fb2ff;
+  outline-offset: 1px;
+}
+.flood-arrow.final {
+  color: #7fb2ff;
+}
+
+/* ---------- world map: worlds & side levels ---------- */
+.signpost {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  font-size: 8px;
+  background: #6b3d1f;
+  color: #ffe9b0;
+  border: 2px solid #2b1608;
+  padding: 3px 6px;
+  box-shadow: 2px 2px 0 #000;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 2;
+}
+.node.side .node-id {
+  color: #d9b8ff;
+  font-size: 9px;
+}

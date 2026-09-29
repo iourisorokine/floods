@@ -48,6 +48,7 @@ function tone(
 
 export const sfx = {
   move: () => tone(110, 0.04, "triangle", 0.04),
+  push: () => tone(70, 0.18, "sawtooth", 0.06, 50),
   buildStart: () => tone(220, 0.05, "square", 0.04),
   work: () => tone(150 + Math.random() * 40, 0.04, "triangle", 0.035),
   build: () => {

@@ -59,6 +59,9 @@ interface Hud {
   tubesLeft: number;
   waterLevel: number;
   targetLevel: number;
+  finalLevel: number;
+  wave: number;
+  waveCount: number;
   stuck: boolean;
   result: Result | null;
   tutorialStep: number;
@@ -74,6 +77,9 @@ function hudFromState(s: GameState): Hud {
     tubesLeft: s.tubesLeft,
     waterLevel: s.waterLevel,
     targetLevel: s.targetLevel,
+    finalLevel: s.finalLevel,
+    wave: s.wave,
+    waveCount: s.waves.length,
     stuck: s.tractor.stuck,
     result: s.result,
     tutorialStep: s.tutorialStep,
@@ -89,10 +95,15 @@ function HeightScale({ hud }: { hud: Hud | null }) {
       <div className="scale">
         {levels.map((h) => {
           const wet = hud && h <= hud.waterLevel;
-          const willFlood = hud && h <= hud.targetLevel;
+          const willFlood = hud && h <= hud.finalLevel;
           const isTarget = hud && h === hud.targetLevel;
+          const isFinal =
+            hud && hud.waveCount > 1 && h === hud.finalLevel && !isTarget;
           return (
-            <div key={h} className={`scale-row ${isTarget ? "target" : ""}`}>
+            <div
+              key={h}
+              className={`scale-row ${isTarget ? "target" : ""} ${isFinal ? "final" : ""}`}
+            >
               <span
                 className="swatch"
                 style={{
@@ -105,7 +116,12 @@ function HeightScale({ hud }: { hud: Hud | null }) {
               <span
                 className={`scale-water ${wet ? "wet" : willFlood ? "will" : ""}`}
               />
-              {isTarget && <span className="flood-arrow">◄ FLOOD</span>}
+              {isTarget && (
+                <span className="flood-arrow">
+                  {hud.waveCount > 1 ? `◄ WAVE ${hud.wave + 1}` : "◄ FLOOD"}
+                </span>
+              )}
+              {isFinal && <span className="flood-arrow final">◄ LAST</span>}
             </div>
           );
         })}
@@ -129,8 +145,8 @@ function HeightScale({ hud }: { hud: Hud | null }) {
 
 interface GameProps {
   level: Level;
-  levelIndex: number;
-  levelCount: number;
+  /** a next level exists on the main path (not for side levels) */
+  hasNext: boolean;
   onMenu: () => void;
   onNext: () => void;
   onResult: (result: Result) => void;
@@ -146,8 +162,7 @@ interface View {
 
 export default function Game({
   level,
-  levelIndex,
-  levelCount,
+  hasNext,
   onMenu,
   onNext,
   onResult,
@@ -250,7 +265,7 @@ export default function Game({
       }
       if (s.phase === "done") {
         if (e.key === "Enter" || e.key === "n" || e.key === "N") {
-          if (s.result?.passed && levelIndex < levelCount - 1) onNext();
+          if (s.result?.passed && hasNext) onNext();
           else restart(true);
         }
         if (e.key === "m" || e.key === "M") onMenu();
@@ -272,7 +287,7 @@ export default function Game({
           inp.nextMoveAt = now + CONFIG.TURN_HOLD_MS;
         } else {
           doMove(s, dir);
-          inp.nextMoveAt = now + CONFIG.MOVE_INTERVAL_MS;
+          inp.nextMoveAt = now + CONFIG.MOVE_INTERVAL_MS * E.moveFactor(s);
         }
         return;
       }
@@ -314,7 +329,7 @@ export default function Game({
       window.removeEventListener("keyup", onUp);
       window.removeEventListener("blur", onBlur);
     };
-  }, [restart, onMenu, onNext, levelIndex, levelCount, showToast]);
+  }, [restart, onMenu, onNext, hasNext, showToast]);
 
   function closeTip() {
     viewRef.current.modal = false;
@@ -325,6 +340,7 @@ export default function Game({
   function doMove(s: GameState, dir: Dir) {
     const r = E.tryMove(s, dir);
     if (r === "moved") sfx.move();
+    if (r === "pushed") sfx.push();
     return r;
   }
 
@@ -354,7 +370,7 @@ export default function Game({
           ) {
             if (s.tractor.dir !== dir) E.turn(s, dir);
             doMove(s, dir);
-            inp.nextMoveAt = now + CONFIG.MOVE_INTERVAL_MS;
+            inp.nextMoveAt = now + CONFIG.MOVE_INTERVAL_MS * E.moveFactor(s);
           }
           // game tick
           const events = E.update(s, dt);
@@ -363,8 +379,24 @@ export default function Game({
             if (ev.type === "removed") sfx.remove();
             if (ev.type === "flood-start") {
               sfx.floodStart();
-              showBanner("THE WATER IS RISING!");
+              showBanner(
+                s.waves.length > 1
+                  ? `WAVE ${s.wave + 1} OF ${s.waves.length}: THE WATER IS RISING!`
+                  : "THE WATER IS RISING!",
+              );
             }
+            if (ev.type === "wave-break") {
+              sfx.win();
+              showBanner(
+                `WAVE ${ev.wave} IS OVER! ${Math.ceil(s.timeLeft / 1000)}s BEFORE WAVE ${ev.wave + 1} (+${s.waves[ev.wave].rise})`,
+                3500,
+              );
+            }
+            if (ev.type === "breach") {
+              sfx.lost();
+              showToast("A cracked dike broke!", 2500);
+            }
+            if (ev.type === "cut") sfx.remove();
             if (ev.type === "rise") sfx.rise();
             if (ev.type === "lost") sfx.lost();
             if (ev.type === "tutorial") sfx.tick();
@@ -454,9 +486,11 @@ export default function Game({
     hud && !hud.noTimer
       ? `${Math.floor(hud.seconds / 60)}:${String(hud.seconds % 60).padStart(2, "0")}`
       : "--:--";
-  const levelLabel = level.id
-    ? `LEVEL ${level.id.toUpperCase()}`
-    : `LEVEL ${levelIndex + 1}`;
+  const levelLabel = level.branchFrom
+    ? `SIDE LEVEL ${level.id.toUpperCase()}`
+    : `LEVEL ${level.id.toUpperCase()}`;
+  const waves = E.levelWaves(level);
+  const betweenWaves = !!hud && hud.phase === "build" && hud.wave > 0;
   const isTutorial = !!level.tutorial;
   const result = hud?.result ?? null;
   const amplitude = E.levelAmplitude(level);
@@ -470,7 +504,11 @@ export default function Game({
         </div>
         <div className="hud-cell">
           <span className="label">
-            {hud?.phase === "flood" || hud?.phase === "done" ? "WATER" : "TIME"}
+            {hud?.phase === "flood" || hud?.phase === "done"
+              ? "WATER"
+              : betweenWaves
+                ? "NEXT WAVE"
+                : "TIME"}
           </span>
           {hud?.phase === "flood" || hud?.phase === "done" ? (
             <span className="value warn">
@@ -489,8 +527,16 @@ export default function Game({
           </span>
         </div>
         <div className="hud-cell">
-          <span className="label">FLOOD HEIGHT</span>
-          <span className="value flood-value">+{amplitude}</span>
+          <span className="label">
+            {waves.length > 1 && hud
+              ? `WAVE ${Math.min(hud.wave + 1, waves.length)}/${waves.length}`
+              : "FLOOD HEIGHT"}
+          </span>
+          <span className="value flood-value">
+            {waves.length > 1
+              ? waves.map((w) => `+${w.rise}`).join(" ")
+              : `+${amplitude}`}
+          </span>
         </div>
       </div>
 
@@ -526,9 +572,29 @@ export default function Game({
                 <div className="small">{levelLabel}</div>
                 <h2>{level.name}</h2>
                 {level.intro && <p>{level.intro}</p>}
+                {level.explainer && (
+                  <p className="explainer">{level.explainer}</p>
+                )}
                 <div className="facts">
                   <span>
-                    FLOOD <b>+{amplitude}</b>
+                    {waves.length > 1 ? (
+                      <>
+                        WAVES{" "}
+                        <b>
+                          {waves
+                            .map((w, k) =>
+                              k < waves.length - 1
+                                ? `+${w.rise} · ${E.wavePause(w)}s ·`
+                                : `+${w.rise}`,
+                            )
+                            .join(" ")}
+                        </b>
+                      </>
+                    ) : (
+                      <>
+                        FLOOD <b>+{amplitude}</b>
+                      </>
+                    )}
                   </span>
                   <span>
                     TUBES <b>{E.levelBudget(level)}</b>
@@ -585,7 +651,7 @@ export default function Game({
                 <p className="small">tubes used: {result.tubesUsed}</p>
                 <div className="buttons">
                   <button onClick={() => restart(true)}>RETRY (R)</button>
-                  {result.passed && levelIndex < levelCount - 1 && (
+                  {result.passed && hasNext && (
                     <button onClick={onNext}>NEXT (N)</button>
                   )}
                   <button onClick={onMenu}>MAP (M)</button>
@@ -615,7 +681,7 @@ export default function Game({
           <b>ARROWS/WASD</b> drive (tap = turn)
         </span>
         <span>
-          <b>SPACE</b> build tube ({CONFIG.BUILD_TIME_SECONDS}s)
+          <b>SPACE</b> build tube ({CONFIG.BUILD_TIME_SECONDS}s) / cut pine
         </span>
         {CONFIG.ALLOW_REMOVE_TUBE && (
           <span>

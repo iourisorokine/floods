@@ -11,6 +11,7 @@ import type {
   Point,
   Result,
   TutorialStep,
+  Wave,
 } from "./types.ts";
 
 export const DIRS: Record<Dir, { dx: number; dy: number }> = {
@@ -26,12 +27,36 @@ export const OBJECT_CODES: Record<string, ObjectType> = {
   H: "house",
   R: "road",
   Y: "tree",
+  B: "building",
+  S: "shop",
+  F: "field",
+  P: "pine",
+  X: "rock",
+  O: "boulder",
 };
+/** marks a cracked dike square in the objects grid (no object on it) */
+export const CRACK_CODE = "C";
+
 // Objects that count for the score (must be protected)
 export const PROTECTED: ReadonlySet<ObjectType | null> = new Set<ObjectType>([
   "house",
   "road",
+  "building",
+  "shop",
+  "field",
 ]);
+// Objects the tractor cannot drive onto (boulders can be pushed)
+const BLOCKS_TRACTOR: ReadonlySet<ObjectType | null> = new Set<ObjectType>([
+  "house",
+  "tree",
+  "building",
+  "shop",
+  "pine",
+  "rock",
+]);
+// Objects that raise the square (they hold back water)
+export const IS_ROCK = (o: ObjectType | null): boolean =>
+  o === "rock" || o === "boulder";
 
 // ---------------------------------------------------------------------------
 // Level parsing
@@ -41,6 +66,7 @@ export interface ParsedLevel {
   h: number;
   base: number[];
   objects: (ObjectType | null)[];
+  cracked: boolean[];
   start: Point;
 }
 
@@ -49,6 +75,7 @@ export function parseLevel(level: Level): ParsedLevel {
   const w = level.heights[0].replace(/\s/g, "").length;
   const base = new Array<number>(w * h);
   const objects = new Array<ObjectType | null>(w * h).fill(null);
+  const cracked = new Array<boolean>(w * h).fill(false);
   let start: Point | null = null;
   for (let y = 0; y < h; y++) {
     const hRow = level.heights[y].replace(/\s/g, "");
@@ -65,6 +92,7 @@ export function parseLevel(level: Level): ParsedLevel {
       base[y * w + x] = parseInt(hRow[x], 10);
       const c = oRow[x] ?? ".";
       if (OBJECT_CODES[c]) objects[y * w + x] = OBJECT_CODES[c];
+      if (c === CRACK_CODE) cracked[y * w + x] = true;
       if (c === "T") start = { x, y };
     }
   }
@@ -72,22 +100,30 @@ export function parseLevel(level: Level): ParsedLevel {
     throw new Error(
       `Level "${level.name}": no tractor start (T) in objects grid`,
     );
-  return { w, h, base, objects, start };
+  return { w, h, base, objects, cracked, start };
 }
 
 export const levelTimer = (level: Level): number =>
   level.timer ?? CONFIG.DEFAULT_TIMER_SECONDS;
+export const levelWaves = (level: Level): Wave[] =>
+  level.waves?.length
+    ? level.waves
+    : [{ rise: level.floodAmplitude ?? CONFIG.DEFAULT_FLOOD_AMPLITUDE }];
+/** total rise of the water over all waves */
 export const levelAmplitude = (level: Level): number =>
-  level.floodAmplitude ?? CONFIG.DEFAULT_FLOOD_AMPLITUDE;
+  levelWaves(level).reduce((a, w) => a + w.rise, 0);
 export const levelBudget = (level: Level): number =>
   level.tubeBudget ?? CONFIG.DEFAULT_TUBE_BUDGET;
+export const wavePause = (w: Wave): number =>
+  w.pause ?? CONFIG.DEFAULT_WAVE_PAUSE_SECONDS;
 
 // ---------------------------------------------------------------------------
 // Game creation
 // ---------------------------------------------------------------------------
 export function createGame(level: Level): GameState {
-  const { w, h, base, objects, start } = parseLevel(level);
+  const { w, h, base, objects, cracked, start } = parseLevel(level);
   const timer = levelTimer(level);
+  const waves = levelWaves(level);
   const s: GameState = {
     level,
     w,
@@ -95,12 +131,16 @@ export function createGame(level: Level): GameState {
     base,
     tubes: new Array<number>(w * h).fill(0),
     objects,
+    cracked,
     lost: new Array<boolean>(w * h).fill(false),
     water: new Array<boolean>(w * h).fill(false),
     floodedAt: new Array<number>(w * h).fill(-1), // time (ms) a square got flooded, for animation
     waterLevel: CONFIG.START_WATER_LEVEL,
-    targetLevel: CONFIG.START_WATER_LEVEL + levelAmplitude(level),
-    phase: "intro", // 'intro' -> 'build' -> 'flood' -> 'done'
+    waves,
+    wave: 0,
+    targetLevel: CONFIG.START_WATER_LEVEL + waves[0].rise,
+    finalLevel: CONFIG.START_WATER_LEVEL + levelAmplitude(level),
+    phase: "intro", // 'intro' -> 'build' -> 'flood' (-> 'build' -> 'flood' per wave) -> 'done'
     noTimer: !timer, // timer 0 = wait for the player to press F
     timeLeft: timer ? timer * 1000 : Infinity,
     tubesLeft: levelBudget(level),
@@ -136,13 +176,22 @@ export function startLevel(s: GameState): void {
 // Helpers (work on any grid with width/height)
 // ---------------------------------------------------------------------------
 type Grid = { w: number; h: number };
-type Heights = Grid & { base: number[]; tubes: number[] };
+type Heights = Grid & {
+  base: number[];
+  tubes: number[];
+  objects: (ObjectType | null)[];
+};
 
 export const idx = (s: Grid, x: number, y: number): number => y * s.w + x;
 export const inBounds = (s: Grid, x: number, y: number): boolean =>
   x >= 0 && y >= 0 && x < s.w && y < s.h;
-export const heightAt = (s: Heights, x: number, y: number): number =>
+/** ground height: terrain + tubes (what the tractor stands on) */
+export const groundAt = (s: Heights, x: number, y: number): number =>
   s.base[idx(s, x, y)] + s.tubes[idx(s, x, y)];
+/** height that holds back water: ground + rocks */
+export const heightAt = (s: Heights, x: number, y: number): number =>
+  groundAt(s, x, y) +
+  (IS_ROCK(s.objects[idx(s, x, y)]) ? CONFIG.ROCK_HEIGHT : 0);
 const active = (s: GameState): boolean =>
   (s.phase === "build" || s.phase === "flood") && !s.tractor.stuck;
 
@@ -156,12 +205,19 @@ export function canEnter(s: GameState, x: number, y: number): boolean {
   const i = idx(s, x, y);
   if (s.water[i]) return false;
   const obj = s.objects[i];
-  if (obj === "house" || obj === "tree") return false;
+  if (BLOCKS_TRACTOR.has(obj) || obj === "boulder") return false;
   if (obj === "road" && !CONFIG.TRACTOR_CAN_DRIVE_ON_ROADS) return false;
   const diff = Math.abs(
-    heightAt(s, x, y) - heightAt(s, s.tractor.x, s.tractor.y),
+    groundAt(s, x, y) - groundAt(s, s.tractor.x, s.tractor.y),
   );
   return diff <= CONFIG.MAX_CLIMB;
+}
+
+/** slower on fields */
+export function moveFactor(s: GameState): number {
+  return s.objects[idx(s, s.tractor.x, s.tractor.y)] === "field"
+    ? CONFIG.FIELD_SLOWDOWN
+    : 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -173,21 +229,54 @@ export function turn(s: GameState, dir: Dir): boolean {
   return true;
 }
 
-export function tryMove(s: GameState, dir: Dir): "moved" | "blocked" | "busy" {
+// Can a boulder at (x, y) be pushed one square in direction (dx, dy)?
+function canPush(
+  s: GameState,
+  x: number,
+  y: number,
+  dx: number,
+  dy: number,
+): boolean {
+  const bx = x + dx;
+  const by = y + dy;
+  if (!inBounds(s, bx, by)) return false;
+  const b = idx(s, bx, by);
+  if (s.objects[b] || s.water[b] || s.tubes[b] > 0) return false;
+  // boulders roll on the flat or downhill, never uphill
+  if (groundAt(s, bx, by) > groundAt(s, x, y)) return false;
+  // the tractor must be able to follow into the freed square
+  return (
+    Math.abs(groundAt(s, x, y) - groundAt(s, s.tractor.x, s.tractor.y)) <=
+    CONFIG.MAX_CLIMB
+  );
+}
+
+export function tryMove(
+  s: GameState,
+  dir: Dir,
+): "moved" | "pushed" | "blocked" | "busy" {
   if (!active(s)) return "blocked";
   if (s.action) return "busy";
   s.tractor.dir = dir;
   const { dx, dy } = DIRS[dir];
   const nx = s.tractor.x + dx;
   const ny = s.tractor.y + dy;
+  let result: "moved" | "pushed" = "moved";
+  if (inBounds(s, nx, ny) && s.objects[idx(s, nx, ny)] === "boulder") {
+    if (!canPush(s, nx, ny, dx, dy)) return "blocked";
+    s.objects[idx(s, nx + dx, ny + dy)] = "boulder";
+    s.objects[idx(s, nx, ny)] = null;
+    result = "pushed";
+  }
   if (!canEnter(s, nx, ny)) return "blocked";
   s.tractor.x = nx;
   s.tractor.y = ny;
   s.tractor.moved = true;
-  return "moved";
+  return result;
 }
 
 // Why building is (not) possible on the square in front. Returns null if OK.
+// (Facing a pine tree means cutting it, which is also OK.)
 export function buildBlocker(s: GameState): BuildBlocker | null {
   if (s.phase === "intro" || s.phase === "done") return "over";
   if (s.tractor.stuck) return "stuck";
@@ -195,24 +284,37 @@ export function buildBlocker(s: GameState): BuildBlocker | null {
   const { x, y } = frontCell(s);
   if (!inBounds(s, x, y)) return "edge";
   const i = idx(s, x, y);
+  if (s.objects[i] === "pine") return null;
   if (s.tubesLeft <= 0) return "no tubes left";
   if (s.water[i] && !CONFIG.CAN_BUILD_ON_WATER) return "water";
-  if (s.objects[i] && !CONFIG.CAN_BUILD_ON_OBJECTS) return "object";
-  if (s.objects[i] === "tree") return "object";
+  if (s.objects[i] && (!CONFIG.CAN_BUILD_ON_OBJECTS || s.objects[i] !== "road"))
+    return "object";
   if (s.tubes[i] >= CONFIG.MAX_TUBES_PER_SQUARE) return "max height";
-  if (heightAt(s, x, y) > heightAt(s, s.tractor.x, s.tractor.y))
+  if (groundAt(s, x, y) > groundAt(s, s.tractor.x, s.tractor.y))
     return "too high";
   return null;
 }
 
 type ActionStart =
-  { ok: true; x: number; y: number } | { ok: false; reason?: BuildBlocker };
+  | { ok: true; x: number; y: number; cut?: boolean }
+  | { ok: false; reason?: BuildBlocker };
 
-// Starts building; the tube appears after BUILD_TIME_SECONDS (see update)
+// Starts building (or cutting a pine); the result appears after a delay (see update)
 export function tryBuild(s: GameState): ActionStart {
   const reason = buildBlocker(s);
   if (reason) return { ok: false, reason };
   const { x, y } = frontCell(s);
+  if (s.objects[idx(s, x, y)] === "pine") {
+    s.action = {
+      type: "cut",
+      x,
+      y,
+      elapsed: 0,
+      total: CONFIG.CUT_TIME_SECONDS * 1000,
+    };
+    if (s.action.total <= 0) finishAction(s, s.action);
+    return { ok: true, x, y, cut: true };
+  }
   s.tubesLeft -= 1; // reserved now, refunded if the build is cancelled
   s.action = {
     type: "build",
@@ -242,9 +344,16 @@ export function tryRemove(s: GameState): ActionStart {
   return { ok: true, x, y };
 }
 
-function finishAction(s: GameState, a: Action): "built" | "removed" | "cancel" {
+function finishAction(
+  s: GameState,
+  a: Action,
+): "built" | "removed" | "cut" | "cancel" {
   s.action = null;
   const i = idx(s, a.x, a.y);
+  if (a.type === "cut") {
+    if (s.objects[i] === "pine") s.objects[i] = null;
+    return "cut";
+  }
   if (a.type === "build") {
     if (s.water[i] && !CONFIG.CAN_BUILD_ON_WATER) {
       s.tubesLeft += 1;
@@ -252,6 +361,7 @@ function finishAction(s: GameState, a: Action): "built" | "removed" | "cancel" {
     }
     s.tubes[i] += 1;
     s.tubesUsed += 1;
+    s.cracked[i] = false; // a tube on a cracked dike repairs it
     return "built";
   }
   if (s.tubes[i] > 0 && !s.water[i]) {
@@ -270,22 +380,27 @@ export function releaseFlood(s: GameState): void {
 // ---------------------------------------------------------------------------
 // Water
 // ---------------------------------------------------------------------------
+const hasWaterNeighbor = (s: GameState, x: number, y: number): boolean =>
+  NEIGHBORS.some(
+    ({ dx, dy }) =>
+      inBounds(s, x + dx, y + dy) && s.water[idx(s, x + dx, y + dy)],
+  );
+
 // One step of spreading: every dry square next to water whose height is
-// <= water level gets flooded (4 directions, no diagonals).
+// <= water level gets flooded (4 directions, no diagonals). Buildings keep
+// the water out but are lost as soon as water touches them.
 function spreadStep(s: GameState, record = true): number[] {
   const newly: number[] = [];
   for (let y = 0; y < s.h; y++) {
     for (let x = 0; x < s.w; x++) {
       const i = idx(s, x, y);
-      if (s.water[i] || heightAt(s, x, y) > s.waterLevel) continue;
-      for (const { dx, dy } of NEIGHBORS) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (inBounds(s, nx, ny) && s.water[idx(s, nx, ny)]) {
-          newly.push(i);
-          break;
-        }
-      }
+      if (
+        s.water[i] ||
+        s.objects[i] === "building" ||
+        heightAt(s, x, y) > s.waterLevel
+      )
+        continue;
+      if (hasWaterNeighbor(s, x, y)) newly.push(i);
     }
   }
   for (const i of newly) {
@@ -294,7 +409,39 @@ function spreadStep(s: GameState, record = true): number[] {
     if (PROTECTED.has(s.objects[i])) s.lost[i] = true;
     if (i === idx(s, s.tractor.x, s.tractor.y)) s.tractor.stuck = true;
   }
+  // buildings touched by water
+  if (newly.length) {
+    for (let y = 0; y < s.h; y++) {
+      for (let x = 0; x < s.w; x++) {
+        const i = idx(s, x, y);
+        if (
+          s.objects[i] === "building" &&
+          !s.lost[i] &&
+          hasWaterNeighbor(s, x, y)
+        ) {
+          s.lost[i] = true;
+          newly.push(i); // reported as lost below
+        }
+      }
+    }
+  }
   return newly;
+}
+
+// Cracked dikes break when the water pushes against them
+function breakCracks(s: GameState, events: GameEvent[]): void {
+  for (let y = 0; y < s.h; y++) {
+    for (let x = 0; x < s.w; x++) {
+      const i = idx(s, x, y);
+      if (!s.cracked[i] || s.water[i]) continue;
+      if (!hasWaterNeighbor(s, x, y)) continue;
+      if (s.waterLevel < heightAt(s, x, y) - CONFIG.CRACK_BREAK_MARGIN)
+        continue;
+      s.cracked[i] = false;
+      s.base[i] = Math.max(1, s.base[i] - CONFIG.CRACK_DROP);
+      events.push({ type: "breach", x, y });
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -312,7 +459,7 @@ export function stepDone(s: GameState, until: string | undefined): boolean {
   if ((m = until.match(/^at (\d+),(\d+)$/)))
     return s.tractor.x === +m[1] && s.tractor.y === +m[2];
   if ((m = until.match(/^height>=(\d+)$/)))
-    return heightAt(s, s.tractor.x, s.tractor.y) >= +m[1];
+    return groundAt(s, s.tractor.x, s.tractor.y) >= +m[1];
   return false;
 }
 
@@ -341,7 +488,7 @@ export function update(s: GameState, dt: number): GameEvent[] {
     events.push({ type: "tutorial", step: s.tutorialStep });
   }
 
-  // build / remove in progress
+  // build / remove / cut in progress
   if (s.action) {
     if (s.tractor.stuck) {
       if (s.action.type === "build") s.tubesLeft += 1;
@@ -358,6 +505,7 @@ export function update(s: GameState, dt: number): GameEvent[] {
     if (s.timeLeft <= 0) {
       s.phase = "flood";
       s.riseTimer = riseInterval(s) - CONFIG.FIRST_RISE_DELAY_SECONDS * 1000;
+      s.settleTimer = 0;
       events.push({ type: "flood-start" });
     }
     return events;
@@ -375,10 +523,13 @@ export function update(s: GameState, dt: number): GameEvent[] {
   s.spreadTimer += dt;
   while (s.spreadTimer >= CONFIG.SPREAD_STEP_MS) {
     s.spreadTimer -= CONFIG.SPREAD_STEP_MS;
+    breakCracks(s, events);
     const newly = spreadStep(s);
     if (newly.length) {
       s.settleTimer = 0;
-      const lostNow = newly.filter((i) => PROTECTED.has(s.objects[i]));
+      const lostNow = newly.filter(
+        (i) => PROTECTED.has(s.objects[i]) && s.lost[i],
+      );
       if (lostNow.length) events.push({ type: "lost", count: lostNow.length });
       if (s.tractor.stuck && newly.includes(idx(s, s.tractor.x, s.tractor.y)))
         events.push({ type: "stuck" });
@@ -388,10 +539,21 @@ export function update(s: GameState, dt: number): GameEvent[] {
   if (s.waterLevel >= s.targetLevel) {
     s.settleTimer += dt;
     if (s.settleTimer >= CONFIG.SETTLE_SECONDS * 1000) {
-      s.phase = "done";
-      s.action = null;
-      s.result = score(s);
-      events.push({ type: "done", result: s.result });
+      if (s.wave < s.waves.length - 1) {
+        // break before the next wave: back to building
+        const pause = wavePause(s.waves[s.wave]);
+        s.wave += 1;
+        s.targetLevel += s.waves[s.wave].rise;
+        s.phase = "build";
+        s.noTimer = false;
+        s.timeLeft = pause * 1000;
+        events.push({ type: "wave-break", wave: s.wave });
+      } else {
+        s.phase = "done";
+        s.action = null;
+        s.result = score(s);
+        events.push({ type: "done", result: s.result });
+      }
     }
   }
   return events;

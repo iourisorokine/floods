@@ -16,11 +16,21 @@ import {
   HOUSE_PALETTE,
   TREE,
   TREE_PALETTE,
+  BUILDING,
+  BUILDING_PALETTE,
+  SHOP,
+  SHOP_PALETTE,
+  PINE,
+  PINE_PALETTE,
+  ROCK,
+  ROCK_PALETTE,
+  BOULDER,
+  BOULDER_PALETTE,
   orient,
   DIGITS,
 } from "./sprites.ts";
 import type { Palette } from "./sprites.ts";
-import type { GameState, Point, Terrain } from "./types.ts";
+import type { GameState, ObjectType, Point, Terrain } from "./types.ts";
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -278,14 +288,133 @@ export function drawTubes(ctx: Ctx, s: Terrain): void {
   }
 }
 
+// Sprites standing on a square (houses, trees, buildings, rocks...)
+const OBJECT_SPRITES: Partial<Record<ObjectType, [string[], Palette]>> = {
+  house: [HOUSE, HOUSE_PALETTE],
+  tree: [TREE, TREE_PALETTE],
+  building: [BUILDING, BUILDING_PALETTE],
+  shop: [SHOP, SHOP_PALETTE],
+  pine: [PINE, PINE_PALETTE],
+  rock: [ROCK, ROCK_PALETTE],
+  boulder: [BOULDER, BOULDER_PALETTE],
+};
+
 export function drawHouses(ctx: Ctx, s: Terrain): void {
-  const house = sprite("house", HOUSE, HOUSE_PALETTE);
-  const tree = sprite("tree", TREE, TREE_PALETTE);
   for (let y = 0; y < s.h; y++) {
     for (let x = 0; x < s.w; x++) {
       const o = s.objects[idx(s, x, y)];
-      if (o === "house") ctx.drawImage(house, x * T, y * T);
-      if (o === "tree") ctx.drawImage(tree, x * T, y * T);
+      const def = o && OBJECT_SPRITES[o];
+      if (def) ctx.drawImage(sprite(o, def[0], def[1]), x * T, y * T);
+    }
+  }
+}
+
+// Crop rows on field squares
+export function drawFields(ctx: Ctx, s: Terrain): void {
+  for (let y = 0; y < s.h; y++) {
+    for (let x = 0; x < s.w; x++) {
+      if (s.objects[idx(s, x, y)] !== "field") continue;
+      const X = x * T,
+        Y = y * T;
+      px(ctx, X + 1, Y + 1, T - 2, T - 2, "#c9b458");
+      for (let r = 2; r < T - 1; r += 3) {
+        px(ctx, X + 1, Y + r, T - 2, 1, "#a8923a");
+        for (let k = 1 + ((r + x) % 2); k < T - 1; k += 3)
+          px(ctx, X + k, Y + r - 1, 1, 1, "#7ea83a");
+      }
+      px(ctx, X, Y, T, 1, "rgba(0,0,0,0.12)");
+      px(ctx, X, Y, 1, T, "rgba(0,0,0,0.12)");
+    }
+  }
+}
+
+// Cracks on weak dike squares
+function drawCracks(ctx: Ctx, s: GameState): void {
+  for (let y = 0; y < s.h; y++) {
+    for (let x = 0; x < s.w; x++) {
+      if (!s.cracked[idx(s, x, y)] || s.water[idx(s, x, y)]) continue;
+      const X = x * T,
+        Y = y * T;
+      const c = "#2a1a0e";
+      // a jagged crack across the square
+      const pts = [
+        [2, 3],
+        [3, 4],
+        [4, 4],
+        [5, 5],
+        [6, 7],
+        [7, 7],
+        [8, 8],
+        [9, 9],
+        [10, 9],
+        [11, 10],
+        [12, 12],
+        [13, 12],
+        [6, 6],
+        [5, 8],
+        [4, 9],
+        [10, 8],
+        [11, 7],
+        [12, 6],
+      ];
+      for (const [dx, dy] of pts) px(ctx, X + dx, Y + dy, 1, 1, c);
+      px(ctx, X + 7, Y + 8, 1, 1, "rgba(255,255,255,0.35)");
+    }
+  }
+}
+
+// Night: darkness everywhere except around the tractor; lightning now and then
+const nightCanvas =
+  typeof document !== "undefined" ? document.createElement("canvas") : null;
+function drawNight(ctx: Ctx, s: GameState, pos: Point, time: number): void {
+  if (!nightCanvas) return;
+  const W = ctx.canvas.width,
+    H = ctx.canvas.height;
+  if (nightCanvas.width !== W || nightCanvas.height !== H) {
+    nightCanvas.width = W;
+    nightCanvas.height = H;
+  }
+  const g = nightCanvas.getContext("2d")!;
+  const period = CONFIG.LIGHTNING_EVERY_SECONDS * 1000;
+  const t = time % period;
+  const flash = t < 140 || (t > 240 && t < 300);
+  g.globalCompositeOperation = "source-over";
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = flash ? "rgba(200,210,255,0.12)" : "rgba(4,6,22,0.94)";
+  g.fillRect(0, 0, W, H);
+  if (!flash) {
+    // punch a soft hole of light around the tractor
+    const cx = pos.x * T + T / 2,
+      cy = pos.y * T + T / 2;
+    const r = CONFIG.NIGHT_LIGHT_RADIUS * T;
+    const grad = g.createRadialGradient(cx, cy, r * 0.35, cx, cy, r);
+    grad.addColorStop(0, "rgba(0,0,0,1)");
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    g.globalCompositeOperation = "destination-out";
+    g.fillStyle = grad;
+    g.fillRect(0, 0, W, H);
+    g.globalCompositeOperation = "source-over";
+  }
+  ctx.drawImage(nightCanvas, 0, 0);
+  if (flash) return;
+  // lit windows of the houses still standing
+  for (let y = 0; y < s.h; y++) {
+    for (let x = 0; x < s.w; x++) {
+      const i = idx(s, x, y);
+      const o = s.objects[i];
+      if (s.lost[i] || (o !== "house" && o !== "building" && o !== "shop"))
+        continue;
+      const X = x * T,
+        Y = y * T;
+      const on = hash(x, y, Math.floor(time / 4000)) > 0.25;
+      if (!on) continue;
+      if (o === "building") {
+        px(ctx, X + 2, Y + 8, 2, 2, "#ffd966");
+        px(ctx, X + 8, Y + 11, 2, 2, "#ffd966");
+      } else {
+        px(ctx, X + 3, Y + 12, 2, 2, "#ffd966");
+        px(ctx, X + 11, Y + 12, 2, 2, "#ffd966");
+      }
     }
   }
 }
@@ -469,12 +598,15 @@ export function render(ctx: Ctx, s: GameState, view: RenderView): void {
   drawSoil(ctx, s);
   drawRelief(ctx, s);
   drawRoads(ctx, s);
+  drawFields(ctx, s);
+  drawCracks(ctx, s);
   drawTubes(ctx, s);
   drawHouses(ctx, s);
   drawWater(ctx, s, time);
   drawMarks(ctx, s, time);
-  drawCursor(ctx, s, time);
   drawTractor(ctx, s, tractorPos, time);
+  if (s.level.night) drawNight(ctx, s, tractorPos, time);
+  drawCursor(ctx, s, time);
   drawAction(ctx, s, time);
   if (showHeights) drawHeights(ctx, s);
 }
