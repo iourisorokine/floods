@@ -7,17 +7,49 @@ import { LEVELS } from "./levels.ts";
 /** Best stars per level id */
 export type Progress = Record<string, number>;
 
-const STORE_KEY = "floods-progress-v1";
+const STORE_KEY = "floods-progress-v2";
+// v1 saves were made before levels 10-25 were reordered by difficulty
+const OLD_STORE_KEY = "floods-progress-v1";
+const V1_TO_V2: Record<string, string> = {
+  "10": "21",
+  "11": "23",
+  "12": "16",
+  "13": "19",
+  "14": "24",
+  "15": "25",
+  "16": "12",
+  "17": "10",
+  "18": "15",
+  "19": "17",
+  "20": "20",
+  "21": "11",
+  "22": "13",
+  "23": "14",
+  "24": "18",
+  "25": "22",
+};
 
 export const levelKey = (i: number): string => LEVELS[i].id ?? String(i);
 
-export function loadProgress(): Progress {
+function read(key: string): Progress | null {
   try {
-    const p: unknown = JSON.parse(localStorage.getItem(STORE_KEY) ?? "null");
-    return p && typeof p === "object" ? (p as Progress) : {};
+    const p: unknown = JSON.parse(localStorage.getItem(key) ?? "null");
+    return p && typeof p === "object" ? (p as Progress) : null;
   } catch {
-    return {};
+    return null;
   }
+}
+
+export function loadProgress(): Progress {
+  const current = read(STORE_KEY);
+  if (current) return current;
+  const old = read(OLD_STORE_KEY);
+  if (!old) return {};
+  const migrated: Progress = {};
+  for (const [id, stars] of Object.entries(old))
+    migrated[V1_TO_V2[id] ?? id] = stars;
+  saveProgress(migrated);
+  return migrated;
 }
 
 export function saveProgress(p: Progress): void {
@@ -31,6 +63,7 @@ export function saveProgress(p: Progress): void {
 export function resetProgress(): Progress {
   try {
     localStorage.removeItem(STORE_KEY);
+    localStorage.removeItem(OLD_STORE_KEY);
   } catch {
     /* storage unavailable */
   }

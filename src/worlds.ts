@@ -1,16 +1,16 @@
-// Worlds: groups of consecutive main levels sharing a landscape on the map.
-// A world starts at the level `from` and runs until the next world.
-export type WorldTheme = "country" | "mountains" | "town";
-
-export interface WorldDef {
+// Chapters of the main path, shown as signposts on the world map.
+// A chapter starts at the level `from` and runs until the next one.
+export interface ChapterDef {
   name: string;
-  /** id of the first level of this world */
+  /** id of the first level of this chapter */
   from: string;
-  theme: WorldTheme;
 }
 
-export const WORLDS: WorldDef[] = [
-  { name: "Countryside", from: "0a", theme: "country" },
-  { name: "Mountains", from: "16", theme: "mountains" },
-  { name: "Town", from: "21", theme: "town" },
+export const WORLDS: ChapterDef[] = [
+  { name: "Countryside", from: "0a" },
+  { name: "Mountains & Towns", from: "10" },
+  { name: "Big Floods", from: "18" },
 ];
+
+// Landscape drawn around a level on the map, guessed from what is in it
+export type WorldTheme = "country" | "mountains" | "town";

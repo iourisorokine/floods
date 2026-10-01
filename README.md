@@ -53,19 +53,19 @@ One-time setup: repo Settings > Pages > Source = "GitHub Actions".
 
 ## Levels
 
-The main path has 27 levels in three worlds, plus 3 optional side levels:
+The main path has 27 levels in three chapters, ordered by difficulty, plus 3 optional side levels:
 
-- **Countryside (0a–15)**: two 5×5 tutorials, then 8×8 and 12×12 levels up to a 16×12 finale.
-- **Mountains (16–20)**: pines, rocks and boulders to push, terrace farms and a mountain lake.
-- **Town (21–25)**: buildings, shops and fields; levels 24 and 25 come in **2 waves**.
+- **Countryside (0a–9)**: two 5×5 tutorials, then 8×8 and 12×12 levels.
+- **Mountains & Towns (10–17)**: each level introduces a new element (rocks, buildings, pines, fields, boulders), mixed with Two Villages and Terrace Farms.
+- **Big Floods (18–25)**: waves (Harbour, Metropolis), stacking puzzles and the hardest maps (Twin Rivers, The Island, Polder) up to The Great Flood.
 - **Side levels** branch off the main path and never block it:
   - **S1 Night Watch** (after level 9): at night you only see around the tractor.
-  - **S2 Cracked Dikes** (after level 14): cracked dike squares break when the water pushes on them.
+  - **S2 Cracked Dikes** (after level 24): cracked dike squares break when the water pushes on them.
   - **S3 Global Warming** (after level 25): 3 waves, +1, +1 and then +2.
 
 A level that introduces a new element shows a short explanation before it starts.
 
-The levels form a path on a pixel-art world map. Each main level unlocks the next one once it is passed (at least 1 star); a side level unlocks when the level it branches from is passed. Progress and best stars are saved in the browser (localStorage) and can be erased with the **RESET PROGRESS** button on the map. Set `UNLOCK_ALL_LEVELS: true` in `src/config.ts` to open every level while testing. Worlds are defined in `src/worlds.ts`.
+The levels form a path on a pixel-art world map. Each main level unlocks the next one once it is passed (at least 1 star); a side level unlocks when the level it branches from is passed. Progress and best stars are saved in the browser (localStorage) and can be erased with the **RESET PROGRESS** button on the map. Set `UNLOCK_ALL_LEVELS: true` in `src/config.ts` to open every level while testing. Chapters are defined in `src/worlds.ts`; the landscape around each level on the map follows what the level contains.
 
 In the tutorials, each tip appears in the middle of the field and pauses the game until you press Space (`TUTORIAL_POPUPS` in the config).
 
@@ -96,5 +96,5 @@ Waves, pause lengths, night mode and side-level branches are set per level in `s
 - `src/Game.tsx`, `src/App.tsx`: React UI (HUD, input, tutorial popups).
 - `src/WorldMap.tsx`, `src/worldmap.ts`: level progression map (generated from the level list, so new levels extend the path automatically).
 - `src/progress.ts`: saved progress (stars, unlocking of main and side levels, reset).
-- `src/worlds.ts`: the worlds of the level path and their landscape.
-- `tools/check-levels.ts`, `tools/solver.ts`: run `pnpm check-levels` (add `-- -v` to print the maps) to see, for each level, what floods without protection, the minimum number of tubes needed to save everything, and whether a simple bot can build it in time following the tractor rules. The bot cuts pines but treats boulders as fixed, so boulder and triage levels (18, 19, 20, S3) show a budget warning on purpose.
+- `src/worlds.ts`: the chapters of the level path.
+- `tools/check-levels.ts`, `tools/solver.ts`: run `pnpm check-levels` (add `-- -v` to print the maps) to see, for each level, what floods without protection, the minimum number of tubes needed to save everything, and whether a simple bot can build it in time following the tractor rules. The bot cuts pines but treats boulders as fixed, so boulder and triage levels (15, 17, 20, S3) show a budget warning on purpose.

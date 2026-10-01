@@ -45,14 +45,16 @@ const PER_ROW = 7;
 const ROW_GAP = 4;
 const MAP_W = 2 + (PER_ROW - 1) * 3 + 3;
 
-/** theme of each main level */
+/** landscape of each main level, from the elements it contains */
 function themes(): Map<number, WorldTheme> {
   const m = new Map<number, WorldTheme>();
-  let theme: WorldTheme = WORLDS[0]?.theme ?? "country";
   for (const i of MAIN_PATH) {
-    const w = WORLDS.find((wd) => wd.from === LEVELS[i].id);
-    if (w) theme = w.theme;
-    m.set(i, theme);
+    const grid = LEVELS[i].objects.join("");
+    const count = (codes: string) =>
+      [...grid].filter((c) => codes.includes(c)).length;
+    const town = count("BS");
+    const mountain = count("PXO");
+    m.set(i, mountain > town ? "mountains" : town > 0 ? "town" : "country");
   }
   return m;
 }
