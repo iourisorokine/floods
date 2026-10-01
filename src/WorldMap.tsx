@@ -28,6 +28,18 @@ const MAP_ORDER: number[] = MAIN_PATH.flatMap((i) => [
 
 const SCALE = CONFIG.SCALE;
 const T = CONFIG.TILE_PX;
+const MAP_BORDER = 4; // matches the .map-scroll border in styles.css
+
+// width of a classic (non-overlay) scrollbar, 0 on systems with overlay scrollbars
+function scrollbarWidth(): number {
+  const d = document.createElement("div");
+  d.style.cssText =
+    "position:absolute;top:-999px;width:100px;height:100px;overflow:scroll";
+  document.body.appendChild(d);
+  const w = d.offsetWidth - d.clientWidth;
+  d.remove();
+  return w;
+}
 
 function LockIcon() {
   return (
@@ -65,6 +77,9 @@ interface WorldMapProps {
 export default function WorldMap({ progress, onPlay, onReset }: WorldMapProps) {
   const world = useMemo(() => buildWorld(), []);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const nodeRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [gutter] = useState(scrollbarWidth);
   const current = currentLevel(progress);
   const [sel, setSel] = useState(current);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -81,6 +96,30 @@ export default function WorldMap({ progress, onPlay, onReset }: WorldMapProps) {
   useEffect(() => {
     setSel(currentLevel(progress));
   }, [progress]);
+
+  // keep the selected level visible in the scrolling map
+  // (centred when the map opens, then only scrolled as much as needed)
+  const firstScroll = useRef(true);
+  useEffect(() => {
+    const node = nodeRefs.current[sel];
+    const box = scrollRef.current;
+    if (!node || !box) return;
+    const r = node.getBoundingClientRect();
+    const b = box.getBoundingClientRect();
+    const margin = 70;
+    if (firstScroll.current) {
+      firstScroll.current = false;
+      box.scrollTop += r.top - b.top - box.clientHeight / 2;
+      box.scrollLeft += r.left - b.left - box.clientWidth / 2;
+      return;
+    }
+    if (r.top - margin < b.top) box.scrollTop += r.top - margin - b.top;
+    else if (r.bottom + margin > b.top + box.clientHeight)
+      box.scrollTop += r.bottom + margin - b.top - box.clientHeight;
+    if (r.left - margin < b.left) box.scrollLeft += r.left - margin - b.left;
+    else if (r.right + margin > b.left + box.clientWidth)
+      box.scrollLeft += r.right + margin - b.left - box.clientWidth;
+  }, [sel]);
 
   // animated canvas (water glints, tractor)
   const statusKey = statuses.join(",");
@@ -137,7 +176,10 @@ export default function WorldMap({ progress, onPlay, onReset }: WorldMapProps) {
     H = world.h * T * SCALE;
 
   return (
-    <div className="map-screen" style={{ width: W }}>
+    <div
+      className="map-screen"
+      style={{ width: `min(100%, ${W + 2 * MAP_BORDER + gutter}px)` }}
+    >
       <header className="map-header">
         <h1 className="logo small-logo">FLOODS</h1>
         <div className="map-header-right">
@@ -166,55 +208,60 @@ export default function WorldMap({ progress, onPlay, onReset }: WorldMapProps) {
         </div>
       </header>
 
-      <div className="map" style={{ width: W, height: H }}>
-        <canvas
-          ref={canvasRef}
-          width={world.w * T}
-          height={world.h * T}
-          style={{ width: W, height: H }}
-        />
-        {world.worldStarts.map(({ index, name }) => {
-          const n = world.nodes[index];
-          return (
-            <div
-              key={"w" + name}
-              className="signpost"
-              style={{
-                left: n.x * T * SCALE + (T * SCALE) / 2,
-                top: n.y * T * SCALE - 26,
-              }}
-            >
-              {name.toUpperCase()}
-            </div>
-          );
-        })}
-        {world.nodes.map((n, i) => {
-          const st = statuses[i];
-          if (n.x < 0) return null;
-          return (
-            <button
-              key={i}
-              className={`node ${st} ${i === sel ? "sel" : ""} ${i === current ? "current" : ""} ${LEVELS[i].branchFrom ? "side" : ""}`}
-              style={{
-                left: n.x * T * SCALE + (T * SCALE) / 2,
-                top: n.y * T * SCALE + (T * SCALE) / 2,
-              }}
-              onClick={() => {
-                if (st !== "locked") {
-                  if (i === sel) onPlay(i);
-                  else setSel(i);
-                } else setSel(i);
-              }}
-              onDoubleClick={() => st !== "locked" && onPlay(i)}
-              title={LEVELS[i].name}
-            >
-              <span className="node-id">
-                {st === "locked" ? <LockIcon /> : LEVELS[i].id.toUpperCase()}
-              </span>
-              {st === "done" && <Stars n={starsOf(progress, i)} />}
-            </button>
-          );
-        })}
+      <div className="map-scroll" ref={scrollRef}>
+        <div className="map" style={{ width: W, height: H }}>
+          <canvas
+            ref={canvasRef}
+            width={world.w * T}
+            height={world.h * T}
+            style={{ width: W, height: H }}
+          />
+          {world.worldStarts.map(({ index, name }) => {
+            const n = world.nodes[index];
+            return (
+              <div
+                key={"w" + name}
+                className="signpost"
+                style={{
+                  left: n.x * T * SCALE + (T * SCALE) / 2,
+                  top: n.y * T * SCALE - 26,
+                }}
+              >
+                {name.toUpperCase()}
+              </div>
+            );
+          })}
+          {world.nodes.map((n, i) => {
+            const st = statuses[i];
+            if (n.x < 0) return null;
+            return (
+              <button
+                key={i}
+                ref={(el) => {
+                  nodeRefs.current[i] = el;
+                }}
+                className={`node ${st} ${i === sel ? "sel" : ""} ${i === current ? "current" : ""} ${LEVELS[i].branchFrom ? "side" : ""}`}
+                style={{
+                  left: n.x * T * SCALE + (T * SCALE) / 2,
+                  top: n.y * T * SCALE + (T * SCALE) / 2,
+                }}
+                onClick={() => {
+                  if (st !== "locked") {
+                    if (i === sel) onPlay(i);
+                    else setSel(i);
+                  } else setSel(i);
+                }}
+                onDoubleClick={() => st !== "locked" && onPlay(i)}
+                title={LEVELS[i].name}
+              >
+                <span className="node-id">
+                  {st === "locked" ? <LockIcon /> : LEVELS[i].id.toUpperCase()}
+                </span>
+                {st === "done" && <Stars n={starsOf(progress, i)} />}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="panel level-card">

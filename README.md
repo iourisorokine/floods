@@ -61,7 +61,7 @@ The main path has 27 levels in three chapters, ordered by difficulty, plus 3 opt
 - **Side levels** branch off the main path and never block it:
   - **S1 Night Watch** (after level 9): at night you only see around the tractor.
   - **S2 Cracked Dikes** (after level 24): cracked dike squares break when the water pushes on them.
-  - **S3 Global Warming** (after level 25): 3 waves, +1, +1 and then +2.
+  - **S3 Global Warming** (after level 25): 3 waves, +1, +1 and then +2. A puzzle level: the canal lock can only be closed from the beach, using temporary tubes as scaffolding, before the beach floods.
 
 A level that introduces a new element shows a short explanation before it starts.
 
@@ -97,4 +97,4 @@ Waves, pause lengths, night mode and side-level branches are set per level in `s
 - `src/WorldMap.tsx`, `src/worldmap.ts`: level progression map (generated from the level list, so new levels extend the path automatically).
 - `src/progress.ts`: saved progress (stars, unlocking of main and side levels, reset).
 - `src/worlds.ts`: the chapters of the level path.
-- `tools/check-levels.ts`, `tools/solver.ts`: run `pnpm check-levels` (add `-- -v` to print the maps) to see, for each level, what floods without protection, the minimum number of tubes needed to save everything, and whether a simple bot can build it in time following the tractor rules. The bot cuts pines but treats boulders as fixed, so boulder and triage levels (15, 17, 20, S3) show a budget warning on purpose.
+- `tools/check-levels.ts`, `tools/solver.ts`: run `pnpm check-levels` (add `-- -v` to print the maps) to see, for each level, what floods without protection, the minimum number of tubes needed to save everything, and whether a simple bot can build it in time following the tractor rules. The bot cuts pines but treats boulders as fixed, so boulder and triage levels (15, 17, 20) show a budget warning on purpose, and the bot fails on S3 (it needs scaffolding and wave timing).

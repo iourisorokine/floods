@@ -415,6 +415,22 @@ button:active {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  /* fills the window: only the map scrolls, header and level card stay put */
+  height: calc(100vh - 32px);
+  height: calc(100dvh - 32px);
+  max-width: 100%;
+}
+.map-screen > * {
+  flex: none;
+}
+.map-screen > .map-scroll {
+  flex: 1 1 auto;
+  min-height: 160px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  /* the frame stays still while the map scrolls inside it */
+  border: 4px solid var(--border);
+  box-shadow: 6px 6px 0 #000;
 }
 .map-header {
   display: flex;
@@ -465,9 +481,6 @@ button:disabled:hover {
 
 .map {
   position: relative;
-  border: 4px solid var(--border);
-  box-shadow: 6px 6px 0 #000;
-  box-sizing: content-box;
 }
 .map canvas {
   display: block;
@@ -565,6 +578,7 @@ button:disabled:hover {
   font-size: 10px;
   line-height: 1.8;
   margin: 6px 0 10px;
+  min-height: 3.6em; /* 2 lines, so the map does not jump between levels */
 }
 .level-card-side {
   display: flex;
