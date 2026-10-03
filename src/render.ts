@@ -240,13 +240,65 @@ function tubeSegment(
   for (const u of [4, 11]) if (u > a && u < b - 1) put(u, 1, 1, t - 2, STRAP);
 }
 
+// Tubes are drawn higher the higher they really are (soil + tubes below), so
+// two tubes at the same height line up and join, even when one sits on lower
+// soil with an extra tube under it. Heights are measured from the lowest soil
+// of each connected group of tubes, to keep the lift small.
+const TUBE_STEP_PX = 3; // lift per height level
+const TUBE_MAX_LIFT_PX = 12;
+
+/** soil height each tube square is measured from (lowest soil of its group) */
+function tubeGroundRefs(s: Terrain, tubes: number[]): number[] {
+  const ref = new Array<number>(s.w * s.h).fill(0);
+  const seen = new Array<boolean>(s.w * s.h).fill(false);
+  for (let start = 0; start < s.w * s.h; start++) {
+    if (!tubes[start] || seen[start]) continue;
+    const group = [start];
+    seen[start] = true;
+    let low = s.base[start];
+    for (let g = 0; g < group.length; g++) {
+      const i = group[g];
+      low = Math.min(low, s.base[i]);
+      const x = i % s.w,
+        y = (i / s.w) | 0;
+      for (const [nx, ny] of [
+        [x - 1, y],
+        [x + 1, y],
+        [x, y - 1],
+        [x, y + 1],
+      ]) {
+        if (!inBounds(s, nx, ny)) continue;
+        const j = idx(s, nx, ny);
+        if (tubes[j] && !seen[j]) {
+          seen[j] = true;
+          group.push(j);
+        }
+      }
+    }
+    for (const i of group) ref[i] = low;
+  }
+  return ref;
+}
+
+/** pixels to lift the k-th tube (0 = lowest) of square i */
+const tubeLift = (s: Terrain, ref: number[], i: number, k: number): number =>
+  Math.min(TUBE_MAX_LIFT_PX, (s.base[i] - ref[i] + k) * TUBE_STEP_PX);
+
 export function drawTubes(ctx: Ctx, s: Terrain): void {
   const tubes = (x: number, y: number): number =>
     inBounds(s, x, y) ? s.tubes[idx(s, x, y)] : 0;
+  const ref = tubeGroundRefs(s, s.tubes);
+  // does the square (x, y) have a tube at the same height as tube k of square i?
+  const joins = (i: number, k: number, x: number, y: number): boolean => {
+    if (!inBounds(s, x, y)) return false;
+    const layer = s.base[i] + k - s.base[idx(s, x, y)];
+    return layer >= 0 && layer < tubes(x, y);
+  };
   for (let y = 0; y < s.h; y++) {
     for (let x = 0; x < s.w; x++) {
       const n = tubes(x, y);
       if (!n) continue;
+      const i = idx(s, x, y);
       const X = x * T,
         Y = y * T;
       const hasH = tubes(x - 1, y) || tubes(x + 1, y);
@@ -257,10 +309,10 @@ export function drawTubes(ctx: Ctx, s: Terrain): void {
         px(ctx, X + 5, Y + 2, TUBE_THICK, T - 2, "rgba(0,0,0,0.25)");
       else px(ctx, X + 1, Y + 7, T - 1, TUBE_THICK - 1, "rgba(0,0,0,0.25)");
       for (let k = 0; k < n; k++) {
-        const off = k * 3; // stacked tubes appear higher
+        const off = tubeLift(s, ref, i, k);
         if (!vertical) {
-          const cl = tubes(x - 1, y) > k,
-            cr = tubes(x + 1, y) > k;
+          const cl = joins(i, k, x - 1, y),
+            cr = joins(i, k, x + 1, y);
           const x0 = X + (cl ? 0 : 1);
           const y0 = Y + 5 - off;
           const L = T - (cl ? 0 : 1) - (cr ? 0 : 1);
@@ -271,8 +323,8 @@ export function drawTubes(ctx: Ctx, s: Terrain): void {
             !cr,
           );
         } else {
-          const cu = tubes(x, y - 1) > k,
-            cd = tubes(x, y + 1) > k;
+          const cu = joins(i, k, x, y - 1),
+            cd = joins(i, k, x, y + 1);
           const y0 = Y - off + (cu ? 0 : 1);
           const L = T - (cu ? 0 : 1) - (cd ? 0 : 1);
           const x0 = X + 4;
@@ -449,15 +501,13 @@ function drawAction(ctx: Ctx, s: GameState, time: number): void {
   const p = Math.min(1, a.elapsed / a.total);
   // ghost tube blinking on the target square
   if (a.type === "build" && Math.floor(time / 150) % 2) {
+    // where the new tube will be drawn once built
+    const i = idx(s, a.x, a.y);
+    const after = s.tubes.slice();
+    after[i] += 1;
+    const lift = tubeLift(s, tubeGroundRefs(s, after), i, s.tubes[i]);
     ctx.globalAlpha = 0.5;
-    px(
-      ctx,
-      X + 1,
-      Y + 5 - s.tubes[idx(s, a.x, a.y)] * 3,
-      T - 2,
-      TUBE_THICK,
-      "#ffffff",
-    );
+    px(ctx, X + 1, Y + 5 - lift, T - 2, TUBE_THICK, "#ffffff");
     ctx.globalAlpha = 1;
   }
   const by = a.y === 0 ? Y + T - 4 : Y - 4;
